@@ -1,0 +1,17 @@
+## Secrets and local configuration
+appsettings.json
+appsettings.local.json
+appsettings.*.json
+!appsettings.example.json
+*.env
+*.env.*
+!.env.example
+secrets.json
+**/secrets/
+
+## Runtime and user-generated data
+user_account.txt
+**/session.json
+
+bin/
+obj/
