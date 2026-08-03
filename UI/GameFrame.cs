@@ -40,6 +40,11 @@ namespace CrushIt.UI
         private System.Windows.Forms.Timer idleTimer = null!;
         private DateTime lastInteractionTime = DateTime.UtcNow;
 
+        // Background styling
+        private List<StyleParticle> backgroundParticles = new List<StyleParticle>();
+        private Random particleRand = new Random();
+        private int pulsePhase = 0;
+
         private Point? hintMove1 = null;
         private Point? hintMove2 = null;
         private int hintAnimationPhase = 0;
@@ -85,11 +90,14 @@ namespace CrushIt.UI
 
             InitializeComponent();
             GameData.ResetScore();
-
-
-            SoundHelper.StartBackgroundMusic(0.08f);
-
-
+            
+            // Initialize background particles
+            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 40, 550, 80, 480));
+            
+            // Start background music with low volume for gameplay
+            SoundHelper.StartBackgroundMusic(0.08f); // 8% volume during gameplay (very faded)
+            
+            // Apply mobile scaling if needed
             MobileHelper.ApplyMobileScaling(this);
 
             inputController = new InputHandler(this, Rows, Cols, TileSize, GridOffsetX, GridOffsetY);
@@ -880,6 +888,10 @@ namespace CrushIt.UI
 
         private void GameLoopTimer_Tick(object? sender, EventArgs e)
         {
+            // Update background particles
+            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 100);
+            pulsePhase++;
+
             for (int i = burstParticles.Count - 1; i >= 0; i--)
             {
                 var p = burstParticles[i];
@@ -911,67 +923,45 @@ namespace CrushIt.UI
             base.OnPaint(e);
             Graphics g = e.Graphics;
 
+            // Draw cartoon background with particles (like HomeFrame/LobbyFrame)
+            CrushItStyleHelper.SetupQualityRendering(g);
+            CrushItStyleHelper.DrawCartoonBackground(g, this.ClientRectangle, pulsePhase);
+            CrushItStyleHelper.DrawBackgroundParticles(g, backgroundParticles);
+
+            // Set up pixelated rendering for the game board
             g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
             g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
 
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(20, 12, 28)))
-            {
-                g.FillRectangle(bgBrush, this.ClientRectangle);
-            }
-
+            // Draw styled level banner
             Rectangle banner = new Rectangle(50, 5, 436, 60);
-
-            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(10, 5, 15)))
-                g.FillRectangle(shadow, new Rectangle(banner.X + 6, banner.Y + 6, banner.Width, banner.Height));
-
-            using (SolidBrush bBorder = new SolidBrush(Color.Black))
-                g.FillRectangle(bBorder, banner);
-
-            Rectangle bInner = new Rectangle(banner.X + 4, banner.Y + 4, banner.Width - 8, banner.Height - 8);
-            using (SolidBrush bFill = new SolidBrush(Color.FromArgb(220, 50, 100)))
-                g.FillRectangle(bFill, bInner);
-
-            using (SolidBrush bHi = new SolidBrush(Color.FromArgb(255, 130, 170)))
+            CrushItStyleHelper.DrawPanel(g, banner, Color.FromArgb(255, 220, 80, 120), Color.FromArgb(255, 190, 60, 100), Color.FromArgb(255, 160, 50, 80));
+            
+            using (Font titleFont = new Font("Comic Sans MS", 20, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                g.FillRectangle(bHi, bInner.X, bInner.Y, bInner.Width, 4);
-                g.FillRectangle(bHi, bInner.X, bInner.Y, 4, bInner.Height);
+                CrushItStyleHelper.DrawOutlinedText(g, $"LEVEL {levelNumber}", titleFont, banner, Color.White, Color.FromArgb(100, 60, 20, 0), 3, sf);
             }
 
-            using (Font titleFont = new Font("Courier New", 18, FontStyle.Bold))
+            // Draw styled score and gold panels
+            Rectangle scorePanel = new Rectangle(50, 75, 220, 45);
+            CrushItStyleHelper.DrawPanel(g, scorePanel, Color.FromArgb(255, 100, 180, 220), Color.FromArgb(255, 70, 150, 190), Color.FromArgb(255, 50, 120, 160));
+            
+            using (Font scoreFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                {
-                    g.DrawString($"LEVEL {levelNumber}", titleFont, Brushes.Black, new RectangleF(banner.X + 3, banner.Y + 3, banner.Width, banner.Height), sf);
-                    g.DrawString($"LEVEL {levelNumber}", titleFont, Brushes.Yellow, new RectangleF(banner.X, banner.Y, banner.Width, banner.Height), sf);
-                }
+                string scoreText = $"SCORE: {Math.Min(GameData.TotalScore, TargetPointGoal)} / {TargetPointGoal}";
+                CrushItStyleHelper.DrawOutlinedText(g, scoreText, scoreFont, scorePanel, Color.White, Color.FromArgb(100, 0, 50, 100), 2, sf);
             }
 
-            using (Font subFont = new Font("Courier New", 14, FontStyle.Bold))
+            Rectangle goldPanel = new Rectangle(280, 75, 220, 45);
+            CrushItStyleHelper.DrawPanel(g, goldPanel, Color.FromArgb(255, 220, 180, 80), Color.FromArgb(255, 190, 150, 50), Color.FromArgb(255, 160, 120, 30));
+            
+            using (Font goldFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                string goalText = $"SCORE: {Math.Min(GameData.TotalScore, TargetPointGoal)} / {TargetPointGoal} PTS";
-                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                {
-
-                    g.DrawString(goalText, subFont, Brushes.Black, new RectangleF(2, 82, 550, 30), sf);
-                    g.DrawString(goalText, subFont, Brushes.Black, new RectangleF(0, 80, 550, 30), sf);
-                    g.DrawString(goalText, subFont, Brushes.Black, new RectangleF(0, 82, 550, 30), sf);
-                    g.DrawString(goalText, subFont, Brushes.Black, new RectangleF(2, 80, 550, 30), sf);
-
-                    g.DrawString(goalText, subFont, Brushes.Cyan, new RectangleF(1, 81, 550, 30), sf);
-                }
-
                 string goldText = $"GOLD: {sessionGold}";
-                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                {
-
-                    g.DrawString(goldText, subFont, Brushes.Black, new RectangleF(2, 97, 550, 30), sf);
-                    g.DrawString(goldText, subFont, Brushes.Black, new RectangleF(0, 95, 550, 30), sf);
-                    g.DrawString(goldText, subFont, Brushes.Black, new RectangleF(0, 97, 550, 30), sf);
-                    g.DrawString(goldText, subFont, Brushes.Black, new RectangleF(2, 95, 550, 30), sf);
-
-                    g.DrawString(goldText, subFont, Brushes.Gold, new RectangleF(1, 96, 550, 30), sf);
-                }
+                CrushItStyleHelper.DrawOutlinedText(g, goldText, goldFont, goldPanel, Color.White, Color.FromArgb(100, 80, 40, 0), 2, sf);
             }
 
 
