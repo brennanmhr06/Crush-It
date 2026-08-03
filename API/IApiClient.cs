@@ -1,6 +1,7 @@
 using System;
 using System.Threading.Tasks;
 using CrushIt.Data;
+using CrushIt.API.Models;
 
 namespace CrushIt.API
 {
@@ -13,6 +14,8 @@ namespace CrushIt.API
         Task<AchievementValidationResult> GetAchievementValidationStatusAsync(string userId, AchievementType achievementType);
         Task<UserRegistrationResult> RegisterUserAsync(string email, string password, string deviceFingerprint);
         Task<UserLoginResult> LoginUserAsync(string email, string password, string deviceFingerprint);
+        Task<ProgressSyncResponse> SyncProgressAsync(ProgressSyncRequest request);
+        Task<ServerProgressData?> GetServerProgressAsync(string userId, string deviceFingerprint);
     }
 
     public class GameplayPattern

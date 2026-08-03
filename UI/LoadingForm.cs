@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using MongoDB.Driver;
 using CrushIt.Data;
 using CrushIt.Core;
+using CrushIt.API;
 
 namespace CrushIt.UI
 {
@@ -36,6 +37,7 @@ namespace CrushIt.UI
 
         private readonly IMongoCollection<UserAccount> usersCollection;
         private readonly IMongoDatabase database;
+        private readonly IApiClient? apiClient;
 
         public LoadingForm()
         {
@@ -50,6 +52,17 @@ namespace CrushIt.UI
             var client = new MongoClient(ConfigurationHelper.GetMongoConnectionString());
             this.database = client.GetDatabase(ConfigurationHelper.GetDatabaseName());
             usersCollection = database.GetCollection<UserAccount>("users");
+
+            // Initialize API client for progress sync
+            try
+            {
+                var config = ApiConfiguration.Default;
+                apiClient = new ApiClient(config.BaseUrl, config.ApiKey);
+            }
+            catch
+            {
+                apiClient = null; // API unavailable, sync will be skipped
+            }
 
             InitializeComponent();
             InitParticles();
@@ -164,6 +177,9 @@ namespace CrushIt.UI
 
                         if (existingUser != null)
                         {
+                            // Sync progress with server
+                            await ProgressSyncService.SyncOnLaunchAsync(existingUser, database, apiClient);
+
                             if (existingUser.HasCompletedTutorial)
                             {
                                 MainFrame main = new MainFrame(existingUser, database);

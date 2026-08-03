@@ -5,8 +5,10 @@ using System.Drawing.Drawing2D;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using MongoDB.Driver;
+using MongoDB.Bson;
 using CrushIt.Data;
 using CrushIt.Core;
+using CrushIt.API;
 
 namespace CrushIt.UI
 {
@@ -52,6 +54,7 @@ namespace CrushIt.UI
         private readonly UserAccount currentUser;
         private readonly int levelNumber;
         private readonly IMongoDatabase database;
+        private readonly IApiClient? apiClient;
         private bool levelCompleted = false;
         private int sessionGold = 0;
         private int completionAnimationPhase = 0;
@@ -79,6 +82,17 @@ namespace CrushIt.UI
             var client = new MongoClient(ConfigurationHelper.GetMongoConnectionString());
             database = client.GetDatabase(ConfigurationHelper.GetDatabaseName());
             usersCollection = database.GetCollection<UserAccount>("users");
+
+            // Initialize API client for progress sync
+            try
+            {
+                var config = ApiConfiguration.Default;
+                apiClient = new ApiClient(config.BaseUrl, config.ApiKey);
+            }
+            catch
+            {
+                apiClient = null; // API unavailable, sync will be skipped
+            }
 
 
             CalculateLevelParameters(level);
@@ -491,6 +505,9 @@ namespace CrushIt.UI
 
 
                         await CheckAndUnlockAchievements();
+
+                        // Sync progress with server after level completion
+                        _ = ProgressSyncService.SyncAfterLevelAsync(currentUser, database, apiClient);
                     }
                     catch (Exception ex)
                     {

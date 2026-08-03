@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using MongoDB.Driver;
 using CrushIt.Data;
 using CrushIt.Core;
+using CrushIt.API;
 
 namespace CrushIt.UI
 {
@@ -21,6 +22,7 @@ namespace CrushIt.UI
     {
         private readonly UserAccount currentUser;
         private readonly IMongoDatabase database;
+        private readonly IApiClient? apiClient;
 
         private List<StyleParticle> backgroundParticles = new List<StyleParticle>();
         private System.Windows.Forms.Timer animationTimer = null!;
@@ -67,6 +69,17 @@ namespace CrushIt.UI
             this.currentUser = user;
             this.database = db;
 
+            // Initialize API client for progress sync
+            try
+            {
+                var config = ApiConfiguration.Default;
+                apiClient = new ApiClient(config.BaseUrl, config.ApiKey);
+            }
+            catch
+            {
+                apiClient = null; // API unavailable, sync will be skipped
+            }
+
             this.SetStyle(ControlStyles.AllPaintingInWmPaint |
                           ControlStyles.UserPaint |
                           ControlStyles.OptimizedDoubleBuffer, true);
@@ -91,7 +104,7 @@ namespace CrushIt.UI
             this.KeyPreview = true;
             this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) Application.Exit(); };
             this.MouseDown += MainFrame_MouseDown;
-            this.FormClosed += (s, e) => animationTimer?.Stop();
+            this.FormClosed += MainFrame_FormClosed;
 
 
             InitializeHomeControls();
@@ -1029,6 +1042,21 @@ namespace CrushIt.UI
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
                 CrushItStyleHelper.DrawOutlinedText(g, "Guilds coming soon!", subFont, contentPanel, Color.FromArgb(220, 255, 255, 255), Color.Black, 1, sf);
+            }
+        }
+
+        private async void MainFrame_FormClosed(object? sender, FormClosedEventArgs e)
+        {
+            animationTimer?.Stop();
+            
+            // Sync progress with server on app close
+            try
+            {
+                await ProgressSyncService.SyncOnCloseAsync(currentUser, database, apiClient);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Sync on close failed: {ex.Message}");
             }
         }
     }

@@ -352,6 +352,69 @@ namespace CrushIt.API
             }
         }
 
+        public async Task<ProgressSyncResponse> SyncProgressAsync(ProgressSyncRequest request)
+        {
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(request);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _httpClient.PostAsync($"{_apiBaseUrl}/sync/progress", content);
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var result = System.Text.Json.JsonSerializer.Deserialize<ProgressSyncResponse>(responseJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                if (result == null)
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine("Sync failed: null response");
+                    return new ProgressSyncResponse
+                    {
+                        Success = false,
+                        Message = "Sync failed - null response"
+                    };
+                }
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                if (_config.EnableLogging)
+                    Console.WriteLine($"Sync error: {ex.Message}");
+                return new ProgressSyncResponse
+                {
+                    Success = false,
+                    Message = "API unavailable - sync failed"
+                };
+            }
+        }
+
+        public async Task<ServerProgressData?> GetServerProgressAsync(string userId, string deviceFingerprint)
+        {
+            try
+            {
+                var response = await _httpClient.GetAsync($"{_apiBaseUrl}/user/progress?userId={userId}&deviceFingerprint={deviceFingerprint}");
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Get server progress failed: {response.StatusCode}");
+                    return null;
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var result = System.Text.Json.JsonSerializer.Deserialize<ServerProgressData>(responseJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+                return result;
+            }
+            catch (Exception ex)
+            {
+                if (_config.EnableLogging)
+                    Console.WriteLine($"Get server progress error: {ex.Message}");
+                return null;
+            }
+        }
+
         private string GenerateSessionId()
         {
             return Guid.NewGuid().ToString("N");
