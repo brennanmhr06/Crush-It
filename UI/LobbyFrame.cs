@@ -32,6 +32,7 @@ namespace CrushIt.UI
         private int maxRows = 4;
         private int baseLevelNumber = 1;
         private int totalLevelsCompleted = 0;
+        private int hoveredLevelIndex = -1;
 
         private NavItem currentNav = NavItem.Levels;
 
@@ -242,7 +243,39 @@ namespace CrushIt.UI
             this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) Application.Exit(); };
 
             this.MouseDown += LobbyFrame_MouseDown;
+            this.MouseMove += LobbyFrame_MouseMove;
+            this.MouseLeave += (s, e) => { hoveredLevelIndex = -1; this.Invalidate(); };
             this.FormClosed += (s, e) => animationTimer?.Stop();
+        }
+
+        private void LobbyFrame_MouseMove(object? sender, MouseEventArgs e)
+        {
+            if (e == null) return;
+            
+            if (currentNav == NavItem.Levels)
+            {
+                int oldHoveredIndex = hoveredLevelIndex;
+                hoveredLevelIndex = -1;
+                
+                foreach (var level in levels)
+                {
+                    int nodeRadius = 40;
+                    int dx = e.X - level.X;
+                    int dy = e.Y - level.Y;
+                    if (dx * dx + dy * dy <= nodeRadius * nodeRadius)
+                    {
+                        hoveredLevelIndex = Array.IndexOf(levels, level);
+                        break;
+                    }
+                }
+                
+                if (oldHoveredIndex != hoveredLevelIndex)
+                {
+                    bool canClick = hoveredLevelIndex >= 0 && levels[hoveredLevelIndex].Unlocked;
+                    this.Cursor = hoveredLevelIndex >= 0 ? (canClick ? Cursors.Hand : Cursors.No) : Cursors.Default;
+                    this.Invalidate();
+                }
+            }
         }
 
         private void LobbyFrame_MouseDown(object? sender, MouseEventArgs e)
@@ -270,7 +303,7 @@ namespace CrushIt.UI
                 {
                     if (level.Unlocked)
                     {
-                        int nodeRadius = 30;
+                        int nodeRadius = 40;
                         int dx = e.X - level.X;
                         int dy = e.Y - level.Y;
                         if (dx * dx + dy * dy <= nodeRadius * nodeRadius)
@@ -310,7 +343,7 @@ namespace CrushIt.UI
 
         private void DrawLevelsView(Graphics g)
         {
-            CrushItStyleHelper.DrawTitleBanner(g, new Rectangle(150, 15, 600, 55), "HOME", 24);
+            CrushItStyleHelper.DrawTitleBanner(g, new Rectangle(150, 15, 600, 55), "LEVELS", 24);
             DrawLevelPath(g);
 
             foreach (var level in levels)
@@ -336,7 +369,11 @@ namespace CrushIt.UI
 
         private void DrawLevelNode(Graphics g, LevelNode level)
         {
-            int size = 56;
+            int levelIndex = Array.IndexOf(levels, level);
+            bool isHovered = (levelIndex == hoveredLevelIndex);
+            bool canInteract = isHovered && level.Unlocked;
+            
+            int size = canInteract ? 72 : 56;
             int x = level.X - size / 2;
             int y = level.Y - size / 2;
             Rectangle nodeRect = new Rectangle(x, y, size, size);
@@ -344,33 +381,36 @@ namespace CrushIt.UI
             Color topColor, bottomColor, borderColor;
             if (level.Completed)
             {
-                topColor = Color.FromArgb(255, 120, 230, 120);
-                bottomColor = Color.FromArgb(255, 70, 170, 70);
-                borderColor = Color.FromArgb(255, 40, 130, 40);
+                topColor = canInteract ? Color.FromArgb(255, 180, 255, 180) : Color.FromArgb(255, 120, 230, 120);
+                bottomColor = canInteract ? Color.FromArgb(255, 140, 220, 140) : Color.FromArgb(255, 70, 170, 70);
+                borderColor = canInteract ? Color.FromArgb(255, 100, 190, 100) : Color.FromArgb(255, 40, 130, 40);
             }
             else if (level.Unlocked)
             {
-                topColor = Color.FromArgb(255, 200, 170, 240);
-                bottomColor = Color.FromArgb(255, 140, 100, 200);
-                borderColor = Color.FromArgb(255, 100, 70, 160);
+                topColor = isHovered ? Color.FromArgb(255, 255, 220, 255) : Color.FromArgb(255, 200, 170, 240);
+                bottomColor = isHovered ? Color.FromArgb(255, 220, 170, 255) : Color.FromArgb(255, 140, 100, 200);
+                borderColor = isHovered ? Color.FromArgb(255, 180, 140, 220) : Color.FromArgb(255, 100, 70, 160);
             }
             else
             {
-                topColor = Color.FromArgb(255, 90, 75, 110);
-                bottomColor = Color.FromArgb(255, 60, 50, 85);
-                borderColor = Color.FromArgb(255, 45, 40, 65);
+                topColor = isHovered ? Color.FromArgb(255, 130, 115, 150) : Color.FromArgb(255, 90, 75, 110);
+                bottomColor = isHovered ? Color.FromArgb(255, 100, 90, 125) : Color.FromArgb(255, 60, 50, 85);
+                borderColor = isHovered ? Color.FromArgb(255, 85, 80, 105) : Color.FromArgb(255, 45, 40, 65);
             }
 
             CrushItStyleHelper.DrawPanel(g, nodeRect, topColor, bottomColor, borderColor);
 
             if (level.Unlocked && !level.Completed)
             {
-                int glowPulse = (int)(20 * Math.Sin(pulsePhase * Math.PI / 60));
-                using (SolidBrush glow = new SolidBrush(Color.FromArgb(40 + glowPulse, 255, 220, 120)))
-                    g.FillEllipse(glow, x - 4, y - 4, size + 8, size + 8);
+                int glowPulse = (int)(25 * Math.Sin(pulsePhase * Math.PI / 60));
+                int glowSize = isHovered ? 18 : 8;
+                int glowAlpha = isHovered ? 80 + glowPulse : 40 + glowPulse;
+                using (SolidBrush glow = new SolidBrush(Color.FromArgb(glowAlpha, 255, 230, 130)))
+                    g.FillEllipse(glow, x - glowSize, y - glowSize, size + glowSize * 2, size + glowSize * 2);
             }
 
-            using (Font numFont = new Font("Comic Sans MS", 22, FontStyle.Bold))
+            int fontSize = canInteract ? 28 : 22;
+            using (Font numFont = new Font("Comic Sans MS", fontSize, FontStyle.Bold))
             {
                 Color textColor = level.Unlocked ? Color.White : Color.FromArgb(180, 160, 160, 175);
                 CrushItStyleHelper.DrawOutlinedText(g, level.Number.ToString(), numFont, nodeRect, textColor, Color.Black, 1);

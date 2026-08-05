@@ -87,7 +87,11 @@ namespace CrushIt.UI
             try
             {
                 var config = ApiConfiguration.Default;
-                apiClient = new ApiClient(config.BaseUrl, config.ApiKey);
+                if (!ApiInitializer.IsInitialized)
+                {
+                    ApiInitializer.Initialize(config);
+                }
+                apiClient = ApiInitializer.GetApiClient();
             }
             catch
             {

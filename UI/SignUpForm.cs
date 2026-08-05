@@ -21,17 +21,23 @@ namespace CrushIt.UI
         private readonly Random particleRand = new Random();
         private readonly List<StyleParticle> backgroundParticles = new List<StyleParticle>();
 
+        private string usernameInput = "";
         private string emailInput = "";
         private string passwordInput = "";
         private string statusMessage = "";
         private Color statusColor = Color.White;
         private bool isProcessing = false;
+        private Rectangle usernameRect;
         private Rectangle emailRect;
         private Rectangle passwordRect;
+        private Rectangle togglePasswordRect;
         private Rectangle buttonRect;
+        private bool isUsernameFocused = false;
         private bool isEmailFocused = false;
         private bool isPasswordFocused = false;
         private bool isButtonHovered = false;
+        private bool isToggleHovered = false;
+        private bool showPassword = false;
 
         public SignUpForm()
         {
@@ -51,7 +57,11 @@ namespace CrushIt.UI
             try
             {
                 var config = ApiConfiguration.Default;
-                apiClient = new ApiClient(config.BaseUrl, config.ApiKey);
+                if (!ApiInitializer.IsInitialized)
+                {
+                    ApiInitializer.Initialize(config);
+                }
+                apiClient = ApiInitializer.GetApiClient();
             }
             catch
             {
@@ -78,13 +88,15 @@ namespace CrushIt.UI
             this.KeyDown += SignUpForm_KeyDown;
             this.MouseClick += SignUpForm_MouseClick;
             this.MouseMove += SignUpForm_MouseMove;
-            this.MouseLeave += (s, e) => { isButtonHovered = false; this.Invalidate(); };
+            this.MouseLeave += (s, e) => { isButtonHovered = false; isToggleHovered = false; this.Cursor = Cursors.Default; this.Invalidate(); };
 
 
             int centerX = 275;
-            emailRect = new Rectangle(centerX - 165, 220, 330, 45);
-            passwordRect = new Rectangle(centerX - 165, 300, 330, 45);
-            buttonRect = new Rectangle(centerX - 125, 400, 250, 55);
+            usernameRect = new Rectangle(centerX - 165, 160, 330, 45);
+            emailRect = new Rectangle(centerX - 165, 240, 330, 45);
+            passwordRect = new Rectangle(centerX - 165, 320, 290, 45);
+            togglePasswordRect = new Rectangle(passwordRect.Right + 10, passwordRect.Y + 10, 30, 25);
+            buttonRect = new Rectangle(centerX - 125, 420, 250, 55);
 
             this.FormClosed += (s, e) => animationTimer?.Stop();
         }
@@ -121,13 +133,27 @@ namespace CrushIt.UI
         {
             if (isProcessing) return;
 
-            if (emailRect.Contains(e.Location))
+            if (togglePasswordRect.Contains(e.Location))
             {
+                showPassword = !showPassword;
+                this.Invalidate();
+                return;
+            }
+            else if (usernameRect.Contains(e.Location))
+            {
+                isUsernameFocused = true;
+                isEmailFocused = false;
+                isPasswordFocused = false;
+            }
+            else if (emailRect.Contains(e.Location))
+            {
+                isUsernameFocused = false;
                 isEmailFocused = true;
                 isPasswordFocused = false;
             }
             else if (passwordRect.Contains(e.Location))
             {
+                isUsernameFocused = false;
                 isEmailFocused = false;
                 isPasswordFocused = true;
             }
@@ -138,6 +164,7 @@ namespace CrushIt.UI
             }
             else
             {
+                isUsernameFocused = false;
                 isEmailFocused = false;
                 isPasswordFocused = false;
             }
@@ -146,9 +173,14 @@ namespace CrushIt.UI
 
         private void SignUpForm_MouseMove(object? sender, MouseEventArgs e)
         {
-            bool wasHovered = isButtonHovered;
+            bool wasButtonHovered = isButtonHovered;
+            bool wasToggleHovered = isToggleHovered;
             isButtonHovered = buttonRect.Contains(e.Location);
-            if (wasHovered != isButtonHovered)
+            isToggleHovered = togglePasswordRect.Contains(e.Location);
+            
+            this.Cursor = isToggleHovered ? Cursors.Hand : Cursors.Default;
+            
+            if (wasButtonHovered != isButtonHovered || wasToggleHovered != isToggleHovered)
                 this.Invalidate();
         }
 
@@ -159,14 +191,18 @@ namespace CrushIt.UI
             if (isProcessing) return;
             if (e.KeyChar == (char)Keys.Back)
             {
-                if (isEmailFocused && emailInput.Length > 0)
+                if (isUsernameFocused && usernameInput.Length > 0)
+                    usernameInput = usernameInput.Substring(0, usernameInput.Length - 1);
+                else if (isEmailFocused && emailInput.Length > 0)
                     emailInput = emailInput.Substring(0, emailInput.Length - 1);
                 else if (isPasswordFocused && passwordInput.Length > 0)
                     passwordInput = passwordInput.Substring(0, passwordInput.Length - 1);
             }
             else if (!char.IsControl(e.KeyChar))
             {
-                if (isEmailFocused && emailInput.Length < 50)
+                if (isUsernameFocused && usernameInput.Length < 20)
+                    usernameInput += e.KeyChar;
+                else if (isEmailFocused && emailInput.Length < 50)
                     emailInput += e.KeyChar;
                 else if (isPasswordFocused && passwordInput.Length < 30)
                     passwordInput += e.KeyChar;
@@ -176,12 +212,21 @@ namespace CrushIt.UI
 
         private async void ProcessSignUp()
         {
+            string username = usernameInput.Trim();
             string email = emailInput.Trim();
             string password = passwordInput;
 
-            if (string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
+            if (string.IsNullOrEmpty(username) || string.IsNullOrEmpty(email) || string.IsNullOrEmpty(password))
             {
                 statusMessage = "Please fill in all details!";
+                statusColor = Color.FromArgb(255, 120, 120);
+                this.Invalidate();
+                return;
+            }
+
+            if (username.Length < 3)
+            {
+                statusMessage = "Username must be at least 3 characters.";
                 statusColor = Color.FromArgb(255, 120, 120);
                 this.Invalidate();
                 return;
@@ -265,12 +310,11 @@ namespace CrushIt.UI
                 UserAccount? userAccount = null;
                 bool useApi = apiClient != null;
 
-                if (useApi)
+                if (useApi && apiClient != null)
                 {
                     statusMessage = "Connecting to server...";
                     statusColor = Color.FromArgb(200, 255, 200);
                     this.Invalidate();
-
 
                     var loginResult = await apiClient.LoginUserAsync(email, password, deviceFingerprint);
 
@@ -294,7 +338,7 @@ namespace CrushIt.UI
                             {
                                 UserId = userId,
                                 Email = email,
-                                Username = loginResult.Username,
+                                Username = username,
                                 Password = "",
                                 HasCompletedTutorial = loginResult.HasCompletedTutorial,
                                 CreatedAt = DateTime.UtcNow
@@ -345,7 +389,7 @@ namespace CrushIt.UI
                         {
                             UserId = userId,
                             Email = email,
-                            Username = registrationResult.Username,
+                            Username = username,
                             Password = "",
                             HasCompletedTutorial = false,
                             CreatedAt = DateTime.UtcNow
@@ -406,15 +450,11 @@ namespace CrushIt.UI
                 }
                 else
                 {
-
-                    Random rand = new Random();
-                    string defaultUsername = "crushing" + rand.Next(1000, 9999);
-
                     var newUser = new UserAccount
                     {
                         UserId = userId,
                         Email = email,
-                        Username = defaultUsername,
+                        Username = username,
                         Password = password,
                         HasCompletedTutorial = false,
                         CreatedAt = DateTime.UtcNow
@@ -471,39 +511,44 @@ namespace CrushIt.UI
 
         private void DrawInputPanel(Graphics g)
         {
-            Rectangle panelRect = new Rectangle(50, 130, 450, 340);
+            Rectangle panelRect = new Rectangle(50, 130, 450, 380);
             CrushItStyleHelper.DrawPanel(g, panelRect, Color.FromArgb(255, 150, 110, 200), Color.FromArgb(255, 110, 70, 170), Color.FromArgb(255, 90, 60, 140));
 
+            using (Font labelFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
+            {
+                g.DrawString("USERNAME", labelFont, new SolidBrush(Color.FromArgb(255, 200, 150, 255)), usernameRect.X, usernameRect.Y - 22);
+            }
+
+            DrawInputField(g, usernameRect, usernameInput, isUsernameFocused, "Choose a username...");
 
             using (Font labelFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
             {
                 g.DrawString("EMAIL ADDRESS", labelFont, new SolidBrush(Color.FromArgb(255, 200, 150, 255)), emailRect.X, emailRect.Y - 22);
             }
 
-
             DrawInputField(g, emailRect, emailInput, isEmailFocused, "Enter your email...");
-
 
             using (Font labelFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
             {
                 g.DrawString("PASSWORD", labelFont, new SolidBrush(Color.FromArgb(255, 200, 150, 255)), passwordRect.X, passwordRect.Y - 22);
             }
 
-
-            string passwordDisplay = new string('●', passwordInput.Length);
+            string passwordDisplay = showPassword ? passwordInput : new string('●', passwordInput.Length);
             DrawInputField(g, passwordRect, passwordDisplay, isPasswordFocused, "Enter your password...");
 
+            DrawPasswordToggle(g);
+
+            DrawPasswordStrength(g);
 
             if (!string.IsNullOrEmpty(statusMessage))
             {
                 using (Font statusFont = new Font("Comic Sans MS", 10, FontStyle.Bold))
                 using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                 {
-                    Rectangle statusRect = new Rectangle(panelRect.X, panelRect.Y + 260, panelRect.Width, 25);
+                    Rectangle statusRect = new Rectangle(panelRect.X, panelRect.Y + 300, panelRect.Width, 25);
                     g.DrawString(statusMessage, statusFont, new SolidBrush(statusColor), statusRect, sf);
                 }
             }
-
 
             DrawButton(g);
         }
@@ -567,6 +612,100 @@ namespace CrushIt.UI
             {
                 CrushItStyleHelper.DrawOutlinedText(g, "CRUSH IT!", buttonFont, buttonRect, Color.White, Color.FromArgb(180, 120, 40, 80), 2, sf);
             }
+        }
+
+        private void DrawPasswordToggle(Graphics g)
+        {
+            Color toggleColor = isToggleHovered ? Color.FromArgb(255, 150, 220, 150) : (showPassword ? Color.FromArgb(255, 100, 200, 100) : Color.FromArgb(255, 200, 200, 200));
+            using (SolidBrush toggleBrush = new SolidBrush(toggleColor))
+            using (Font toggleFont = new Font("Arial", 14, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString(showPassword ? "👁" : "👁‍🗨", toggleFont, toggleBrush, togglePasswordRect, sf);
+            }
+        }
+
+        private void DrawPasswordStrength(Graphics g)
+        {
+            if (string.IsNullOrEmpty(passwordInput))
+                return;
+
+            int strength = CalculatePasswordStrength(passwordInput);
+            Color strengthColor;
+            string strengthText;
+
+            switch (strength)
+            {
+                case 0:
+                case 1:
+                    strengthColor = Color.FromArgb(255, 255, 100, 100);
+                    strengthText = "Weak";
+                    break;
+                case 2:
+                    strengthColor = Color.FromArgb(255, 255, 200, 100);
+                    strengthText = "Fair";
+                    break;
+                case 3:
+                    strengthColor = Color.FromArgb(255, 255, 255, 100);
+                    strengthText = "Good";
+                    break;
+                case 4:
+                    strengthColor = Color.FromArgb(255, 100, 255, 100);
+                    strengthText = "Strong";
+                    break;
+                default:
+                    strengthColor = Color.FromArgb(255, 100, 200, 255);
+                    strengthText = "Very Strong";
+                    break;
+            }
+
+            Rectangle strengthBarRect = new Rectangle(passwordRect.X, passwordRect.Bottom + 8, passwordRect.Width, 8);
+            int filledWidth = (int)(strengthBarRect.Width * ((strength + 1) / 5.0));
+
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(255, 200, 200, 200)))
+            {
+                g.FillRoundedRectangle(bgBrush, strengthBarRect, 4);
+            }
+
+            using (SolidBrush fillBrush = new SolidBrush(strengthColor))
+            {
+                Rectangle filledRect = new Rectangle(strengthBarRect.X, strengthBarRect.Y, filledWidth, strengthBarRect.Height);
+                g.FillRoundedRectangle(fillBrush, filledRect, 4);
+            }
+
+            using (Font strengthFont = new Font("Comic Sans MS", 9, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString(strengthText, strengthFont, new SolidBrush(strengthColor), new Rectangle(strengthBarRect.X, strengthBarRect.Bottom + 2, strengthBarRect.Width, 15), sf);
+            }
+        }
+
+        private int CalculatePasswordStrength(string password)
+        {
+            int strength = 0;
+
+            if (password.Length >= 8) strength++;
+            if (password.Length >= 12) strength++;
+
+            bool hasUpper = false;
+            bool hasLower = false;
+            bool hasDigit = false;
+            bool hasSpecial = false;
+
+            foreach (char c in password)
+            {
+                if (char.IsUpper(c)) hasUpper = true;
+                else if (char.IsLower(c)) hasLower = true;
+                else if (char.IsDigit(c)) hasDigit = true;
+                else if (!char.IsLetterOrDigit(c)) hasSpecial = true;
+            }
+
+            if (hasUpper) strength++;
+            if (hasLower) strength++;
+            if (hasDigit) strength++;
+            if (hasSpecial) strength++;
+
+            return Math.Min(strength, 5);
         }
 
         private void DrawStatusMessage(Graphics g)

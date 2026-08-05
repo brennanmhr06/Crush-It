@@ -18,6 +18,32 @@ namespace CrushIt.UI
         public float Alpha;
         public Color Color;
         public float PulseSpeed;
+        public int Shape; // 0 = circle, 1 = star, 2 = diamond
+    }
+
+    public struct CandyOrbiter
+    {
+        public float Angle;
+        public float Radius;
+        public float Speed;
+        public float Size;
+        public float BaseSize;
+        public Color Color;
+        public int Type; // 0 = circle, 1 = star, 2 = heart
+        public float Rotation;
+        public float RotationSpeed;
+        public float PulsePhase;
+        public float PulseSpeed;
+        public List<Particle> Trail;
+    }
+
+    public struct Sparkle
+    {
+        public float X, Y;
+        public float Size;
+        public float Alpha;
+        public float Rotation;
+        public float RotationSpeed;
     }
 
     public class LoadingForm : Form
@@ -30,6 +56,8 @@ namespace CrushIt.UI
 
         private List<Particle> particles = new List<Particle>();
         private List<Particle> bursts = new List<Particle>();
+        private List<CandyOrbiter> orbiters = new List<CandyOrbiter>();
+        private List<Sparkle> sparkles = new List<Sparkle>();
         private Random rand = new Random();
 
         private string currentStatusText = "READYING CANDIES...";
@@ -57,7 +85,8 @@ namespace CrushIt.UI
             try
             {
                 var config = ApiConfiguration.Default;
-                apiClient = new ApiClient(config.BaseUrl, config.ApiKey);
+                ApiInitializer.Initialize(config);
+                apiClient = ApiInitializer.GetApiClient();
             }
             catch
             {
@@ -104,7 +133,44 @@ namespace CrushIt.UI
                     Size = rand.Next(3, 10),
                     Alpha = rand.Next(60, 180),
                     Color = GetRandomCandyColor(),
-                    PulseSpeed = (float)(rand.NextDouble() * 0.03 + 0.01)
+                    PulseSpeed = (float)(rand.NextDouble() * 0.03 + 0.01),
+                    Shape = rand.Next(0, 3)
+                });
+            }
+
+            // Initialize orbiting candies around the title
+            for (int i = 0; i < 12; i++)
+            {
+                float baseSize = rand.Next(15, 28);
+                var orbiter = new CandyOrbiter
+                {
+                    Angle = (float)(i * Math.PI / 6),
+                    Radius = 200 + rand.Next(-30, 30),
+                    Speed = (float)(rand.NextDouble() * 0.025 + 0.015) * (rand.Next(0, 2) == 0 ? 1 : -1),
+                    Size = baseSize,
+                    BaseSize = baseSize,
+                    Color = GetRandomCandyColor(),
+                    Type = rand.Next(0, 3),
+                    Rotation = rand.Next(0, 360),
+                    RotationSpeed = (float)(rand.NextDouble() * 3 - 1.5),
+                    PulsePhase = rand.Next(0, 100),
+                    PulseSpeed = (float)(rand.NextDouble() * 0.05 + 0.02),
+                    Trail = new List<Particle>()
+                };
+                orbiters.Add(orbiter);
+            }
+
+            // Initialize sparkles
+            for (int i = 0; i < 15; i++)
+            {
+                sparkles.Add(new Sparkle
+                {
+                    X = rand.Next(50, 500),
+                    Y = rand.Next(100, 600),
+                    Size = rand.Next(8, 15),
+                    Alpha = rand.Next(100, 200),
+                    Rotation = rand.Next(0, 360),
+                    RotationSpeed = (float)(rand.NextDouble() * 2 - 1)
                 });
             }
         }
@@ -152,7 +218,8 @@ namespace CrushIt.UI
                         SpeedY = (float)(rand.NextDouble() * -2.5 - 0.5),
                         Size = rand.Next(4, 9),
                         Alpha = 255,
-                        Color = GetRandomCandyColor()
+                        Color = GetRandomCandyColor(),
+                        Shape = rand.Next(0, 3)
                     });
                 }
             }
@@ -220,6 +287,65 @@ namespace CrushIt.UI
 
             pulsePhase = (pulsePhase + 1) % 120;
 
+            // Update orbiters
+            for (int i = 0; i < orbiters.Count; i++)
+            {
+                var orb = orbiters[i];
+                orb.Angle += orb.Speed;
+                orb.Rotation += orb.RotationSpeed;
+                orb.PulsePhase += orb.PulseSpeed;
+                
+                // Pulsing size effect
+                float pulseScale = 1.0f + (float)(0.3 * Math.Sin(orb.PulsePhase));
+                orb.Size = orb.BaseSize * pulseScale;
+                
+                // Add trail particles
+                if (rand.Next(0, 4) == 0)
+                {
+                    int centerX = 275;
+                    int centerY = (int)(158 + floatAnim);
+                    float orbX = centerX + (float)(Math.Cos(orb.Angle) * orb.Radius);
+                    float orbY = centerY + (float)(Math.Sin(orb.Angle) * orb.Radius);
+                    
+                    orb.Trail.Add(new Particle
+                    {
+                        X = orbX,
+                        Y = orbY,
+                        SpeedX = (float)(rand.NextDouble() * 0.5 - 0.25),
+                        SpeedY = (float)(rand.NextDouble() * 0.5 - 0.25),
+                        Size = orb.Size * 0.3f,
+                        Alpha = 180,
+                        Color = orb.Color,
+                        PulseSpeed = 0.01f,
+                        Shape = 0
+                    });
+                }
+                
+                // Update trail particles
+                for (int j = orb.Trail.Count - 1; j >= 0; j--)
+                {
+                    var trail = orb.Trail[j];
+                    trail.Alpha -= 8;
+                    trail.Size *= 0.95f;
+                    if (trail.Alpha <= 0)
+                        orb.Trail.RemoveAt(j);
+                    else
+                        orb.Trail[j] = trail;
+                }
+                
+                orbiters[i] = orb;
+            }
+
+            // Update sparkles
+            for (int i = 0; i < sparkles.Count; i++)
+            {
+                var s = sparkles[i];
+                s.Rotation += s.RotationSpeed;
+                s.Alpha += (float)(Math.Sin(pulsePhase * 0.1) * 2);
+                s.Alpha = Math.Max(50, Math.Min(255, s.Alpha));
+                sparkles[i] = s;
+            }
+
 
             if (rand.Next(0, 3) == 0)
             {
@@ -231,7 +357,8 @@ namespace CrushIt.UI
                     SpeedY = (float)(rand.NextDouble() * 2.0 - 1.0),
                     Size = rand.Next(2, 6),
                     Alpha = 255,
-                    Color = GetRandomCandyColor()
+                    Color = GetRandomCandyColor(),
+                    Shape = rand.Next(0, 3)
                 });
             }
 
@@ -290,7 +417,101 @@ namespace CrushIt.UI
                 pulseAlpha = Math.Max(30, Math.Min(255, pulseAlpha));
                 using (SolidBrush pBrush = new SolidBrush(Color.FromArgb((int)pulseAlpha, p.Color)))
                 {
-                    g.FillEllipse(pBrush, p.X, p.Y, p.Size, p.Size);
+                    if (p.Shape == 0) // Circle
+                    {
+                        g.FillEllipse(pBrush, p.X, p.Y, p.Size, p.Size);
+                    }
+                    else if (p.Shape == 1) // Star
+                    {
+                        DrawStar(g, p.X + p.Size / 2, p.Y + p.Size / 2, p.Size / 2, p.Size / 4, 5, pBrush);
+                    }
+                    else // Diamond
+                    {
+                        PointF[] diamond = new PointF[]
+                        {
+                            new PointF(p.X + p.Size / 2, p.Y),
+                            new PointF(p.X + p.Size, p.Y + p.Size / 2),
+                            new PointF(p.X + p.Size / 2, p.Y + p.Size),
+                            new PointF(p.X, p.Y + p.Size / 2)
+                        };
+                        g.FillPolygon(pBrush, diamond);
+                    }
+                }
+            }
+
+            // Draw sparkles
+            foreach (var s in sparkles)
+            {
+                using (SolidBrush sparkleBrush = new SolidBrush(Color.FromArgb((int)s.Alpha, 255, 255, 200)))
+                {
+                    DrawStar(g, s.X, s.Y, s.Size / 2, s.Size / 4, 4, sparkleBrush);
+                }
+            }
+
+            // Draw orbiting candies around the title
+            int centerX = 275;
+            int centerY = (int)(158 + floatAnim);
+            foreach (var orb in orbiters)
+            {
+                float orbX = centerX + (float)(Math.Cos(orb.Angle) * orb.Radius);
+                float orbY = centerY + (float)(Math.Sin(orb.Angle) * orb.Radius);
+                
+                // Draw trail particles
+                foreach (var trail in orb.Trail)
+                {
+                    using (SolidBrush trailBrush = new SolidBrush(Color.FromArgb((int)trail.Alpha, trail.Color)))
+                    {
+                        g.FillEllipse(trailBrush, trail.X, trail.Y, trail.Size, trail.Size);
+                    }
+                }
+                
+                // Draw main orbiter with rotation
+                g.TranslateTransform(orbX, orbY);
+                g.RotateTransform(orb.Rotation);
+                
+                using (Brush orbBrush = new SolidBrush(Color.FromArgb(255, orb.Color)))
+                {
+                    if (orb.Type == 0) // Circle with inner detail
+                    {
+                        g.FillEllipse(orbBrush, -orb.Size / 2, -orb.Size / 2, orb.Size, orb.Size);
+                        // Add inner highlight
+                        using (Brush highlight = new SolidBrush(Color.FromArgb(150, 255, 255, 255)))
+                        {
+                            g.FillEllipse(highlight, -orb.Size / 4, -orb.Size / 4, orb.Size / 2, orb.Size / 2);
+                        }
+                    }
+                    else if (orb.Type == 1) // Star
+                    {
+                        DrawStar(g, 0, 0, orb.Size / 2, orb.Size / 4, 5, orbBrush);
+                    }
+                    else // Heart
+                    {
+                        using (SolidBrush heartBrush = new SolidBrush(orb.Color))
+                        {
+                            DrawHeart(g, 0, 0, orb.Size, heartBrush);
+                        }
+                    }
+                }
+                
+                g.ResetTransform();
+                
+                // Add glow effect with pulsing
+                float glowSize = orb.Size * 1.5f;
+                float glowAlpha = 60 + (float)(30 * Math.Sin(pulsePhase * 0.1 + orb.PulsePhase));
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb((int)glowAlpha, orb.Color)))
+                {
+                    g.FillEllipse(glowBrush, orbX - glowSize / 2, orbY - glowSize / 2, glowSize, glowSize);
+                }
+                
+                // Add sparkles around orbiter
+                if (rand.Next(0, 8) == 0)
+                {
+                    float sparkleX = orbX + (float)(rand.NextDouble() * orb.Size - orb.Size / 2);
+                    float sparkleY = orbY + (float)(rand.NextDouble() * orb.Size - orb.Size / 2);
+                    using (Brush sparkleBrush = new SolidBrush(Color.FromArgb(200, 255, 255, 200)))
+                    {
+                        DrawStar(g, sparkleX, sparkleY, 4, 2, 4, sparkleBrush);
+                    }
                 }
             }
 
@@ -394,39 +615,73 @@ namespace CrushIt.UI
             {
                 Rectangle fillRect = new Rectangle(barX + 3, barY + 3, currentFillWidth - 6, barHeight - 6);
 
-
-                using (LinearGradientBrush fillBrush = new LinearGradientBrush(
-                    fillRect,
-                    Color.FromArgb(255, 80, 180),
-                    Color.FromArgb(255, 240, 80),
-                    LinearGradientMode.Horizontal))
+                // Draw segment dividers for candy bar effect
+                int segmentWidth = 30;
+                int segmentCount = currentFillWidth / segmentWidth;
+                
+                for (int i = 0; i < segmentCount; i++)
                 {
-                    g.FillRoundedRectangle(fillBrush, fillRect, 14);
+                    int segX = barX + 3 + i * segmentWidth;
+                    int segWidth = Math.Min(segmentWidth - 2, currentFillWidth - 6 - i * segmentWidth);
+                    if (segWidth <= 0) break;
+                    
+                    Rectangle segRect = new Rectangle(segX, barY + 3, segWidth, barHeight - 6);
+                    
+                    Color segColor = (i % 2 == 0) ? 
+                        Color.FromArgb(255, 80, 180) : 
+                        Color.FromArgb(255, 240, 80);
+                    
+                    using (SolidBrush segBrush = new SolidBrush(segColor))
+                    {
+                        g.FillRoundedRectangle(segBrush, segRect, 8);
+                    }
                 }
 
-
-                using (SolidBrush gloss = new SolidBrush(Color.FromArgb(120, 255, 255, 255)))
+                // Draw gloss effect
+                using (SolidBrush gloss = new SolidBrush(Color.FromArgb(100, 255, 255, 255)))
                 {
                     g.FillRoundedRectangle(gloss, new Rectangle(barX + 8, barY + 5, currentFillWidth - 16, (barHeight - 10) / 2), 8);
                 }
 
-
-                using (LinearGradientBrush fillGlow = new LinearGradientBrush(
-                    new Rectangle(fillRect.X + 4, fillRect.Y + 4, fillRect.Width - 8, fillRect.Height - 8),
-                    Color.FromArgb(40, 255, 255, 255),
-                    Color.FromArgb(10, 255, 255, 255),
-                    LinearGradientMode.Vertical))
+                // Draw glow effect at the leading edge
+                if (currentFillWidth > 20)
                 {
-                    g.FillRoundedRectangle(fillGlow, new Rectangle(fillRect.X + 4, fillRect.Y + 4, fillRect.Width - 8, fillRect.Height - 8), 10);
+                    int glowX = barX + currentFillWidth - 20;
+                    using (LinearGradientBrush glowBrush = new LinearGradientBrush(
+                        new Rectangle(glowX, barY, 30, barHeight),
+                        Color.FromArgb(150, 255, 255, 255),
+                        Color.FromArgb(0, 255, 255, 255),
+                        LinearGradientMode.Horizontal))
+                    {
+                        g.FillRoundedRectangle(glowBrush, new Rectangle(glowX, barY + 3, 25, barHeight - 6), 8);
+                    }
                 }
             }
 
 
             foreach (var p in bursts)
             {
-                using (SolidBrush bBrush = new SolidBrush(Color.FromArgb((int)p.Alpha, p.Color)))
+                using (SolidBrush burstBrush = new SolidBrush(Color.FromArgb((int)p.Alpha, p.Color)))
                 {
-                    g.FillEllipse(bBrush, p.X, p.Y, p.Size, p.Size);
+                    if (p.Shape == 0) // Circle
+                    {
+                        g.FillEllipse(burstBrush, p.X, p.Y, p.Size, p.Size);
+                    }
+                    else if (p.Shape == 1) // Star
+                    {
+                        DrawStar(g, p.X + p.Size / 2, p.Y + p.Size / 2, p.Size / 2, p.Size / 4, 5, burstBrush);
+                    }
+                    else // Diamond
+                    {
+                        PointF[] diamond = new PointF[]
+                        {
+                            new PointF(p.X + p.Size / 2, p.Y),
+                            new PointF(p.X + p.Size, p.Y + p.Size / 2),
+                            new PointF(p.X + p.Size / 2, p.Y + p.Size),
+                            new PointF(p.X, p.Y + p.Size / 2)
+                        };
+                        g.FillPolygon(burstBrush, diamond);
+                    }
                 }
             }
 
@@ -467,6 +722,85 @@ namespace CrushIt.UI
             {
                 g.DrawRectangle(innerPen, 6, 6, this.ClientSize.Width - 12, this.ClientSize.Height - 12);
             }
+
+            // Draw corner decorations
+            DrawCornerDecorations(g);
+        }
+
+        private void DrawCornerDecorations(Graphics g)
+        {
+            Color[] cornerColors = {
+                Color.FromArgb(255, 90, 160),
+                Color.FromArgb(255, 215, 0),
+                Color.FromArgb(0, 230, 180),
+                Color.FromArgb(170, 90, 255)
+            };
+
+            int cornerSize = 25;
+            int cornerOffset = 15;
+
+            // Top-left
+            using (SolidBrush tlBrush = new SolidBrush(Color.FromArgb(200, cornerColors[0])))
+            {
+                DrawStar(g, cornerOffset, cornerOffset, cornerSize / 2, cornerSize / 4, 5, tlBrush);
+            }
+
+            // Top-right
+            using (SolidBrush trBrush = new SolidBrush(Color.FromArgb(200, cornerColors[1])))
+            {
+                DrawStar(g, this.ClientSize.Width - cornerOffset, cornerOffset, cornerSize / 2, cornerSize / 4, 5, trBrush);
+            }
+
+            // Bottom-left
+            using (SolidBrush blBrush = new SolidBrush(Color.FromArgb(200, cornerColors[2])))
+            {
+                DrawStar(g, cornerOffset, this.ClientSize.Height - cornerOffset, cornerSize / 2, cornerSize / 4, 5, blBrush);
+            }
+
+            // Bottom-right
+            using (SolidBrush brBrush = new SolidBrush(Color.FromArgb(200, cornerColors[3])))
+            {
+                DrawStar(g, this.ClientSize.Width - cornerOffset, this.ClientSize.Height - cornerOffset, cornerSize / 2, cornerSize / 4, 5, brBrush);
+            }
+        }
+
+        private void DrawStar(Graphics g, float cx, float cy, float outerRadius, float innerRadius, int points, Brush brush)
+        {
+            PointF[] starPoints = new PointF[points * 2];
+            double angle = -Math.PI / 2;
+            double step = Math.PI / points;
+
+            for (int i = 0; i < points * 2; i++)
+            {
+                float radius = (i % 2 == 0) ? outerRadius : innerRadius;
+                starPoints[i] = new PointF(
+                    cx + (float)(Math.Cos(angle) * radius),
+                    cy + (float)(Math.Sin(angle) * radius)
+                );
+                angle += step;
+            }
+
+            g.FillPolygon(brush, starPoints);
+        }
+
+        private void DrawHeart(Graphics g, float cx, float cy, float size, Brush brush)
+        {
+            float scale = size / 20f;
+            PointF[] heartPoints = new PointF[]
+            {
+                new PointF(cx, cy - 5 * scale),
+                new PointF(cx + 5 * scale, cy - 10 * scale),
+                new PointF(cx + 10 * scale, cy - 5 * scale),
+                new PointF(cx + 10 * scale, cy),
+                new PointF(cx + 5 * scale, cy + 5 * scale),
+                new PointF(cx, cy),
+                new PointF(cx - 5 * scale, cy + 5 * scale),
+                new PointF(cx - 10 * scale, cy),
+                new PointF(cx - 10 * scale, cy - 5 * scale),
+                new PointF(cx - 5 * scale, cy - 10 * scale)
+            };
+
+            g.FillPolygon(brush, heartPoints);
         }
     }
 }
