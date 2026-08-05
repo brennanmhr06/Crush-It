@@ -13,12 +13,24 @@ namespace CrushIt.API
         private readonly string _apiKey;
         private readonly HttpClient _httpClient;
         private readonly ApiConfiguration _config;
+        private readonly RetryPolicy _retryPolicy;
+        private readonly RateLimiter _rateLimiter;
+        private readonly ApiCache _cache;
 
         public ApiClient(string apiBaseUrl, string apiKey)
         {
             _apiBaseUrl = apiBaseUrl;
             _apiKey = apiKey;
             _config = ApiConfiguration.Default;
+            _retryPolicy = new RetryPolicy(
+                maxRetries: _config.MaxRetries,
+                backoffMultiplier: _config.RetryBackoffMultiplier);
+            _rateLimiter = new RateLimiter(
+                maxRequests: _config.RateLimitMaxRequests, 
+                TimeSpan.FromMinutes(_config.RateLimitTimeWindowMinutes));
+            _cache = new ApiCache(
+                TimeSpan.FromMinutes(_config.CacheTtlMinutes), 
+                _config.MaxCacheSize);
             _httpClient = new HttpClient
             {
                 Timeout = TimeSpan.FromSeconds(_config.TimeoutSeconds)
@@ -31,6 +43,14 @@ namespace CrushIt.API
         {
             try
             {
+                // Apply rate limiting
+                if (!_rateLimiter.TryRequest(userId))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for user {userId}");
+                    return true; // Fail-open
+                }
+
                 var request = new ScoreValidationRequest
                 {
                     UserId = userId,
@@ -46,7 +66,8 @@ namespace CrushIt.API
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync($"{_apiBaseUrl}/validate-score", content);
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/validate-score", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -72,6 +93,13 @@ namespace CrushIt.API
         {
             try
             {
+                if (!_rateLimiter.TryRequest(userId))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for user {userId}");
+                    return true; // Fail-open
+                }
+
                 var request = new AchievementVerificationRequest
                 {
                     UserId = userId,
@@ -86,7 +114,8 @@ namespace CrushIt.API
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync($"{_apiBaseUrl}/verify-achievement", content);
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/verify-achievement", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -112,6 +141,13 @@ namespace CrushIt.API
         {
             try
             {
+                if (!_rateLimiter.TryRequest(userId))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for user {userId}");
+                    return true; // Fail-open
+                }
+
                 var request = new SessionValidationRequest
                 {
                     UserId = userId,
@@ -124,7 +160,8 @@ namespace CrushIt.API
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync($"{_apiBaseUrl}/validate-session", content);
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/validate-session", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -158,6 +195,13 @@ namespace CrushIt.API
         {
             try
             {
+                if (!_rateLimiter.TryRequest(userId))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for user {userId}");
+                    return true; // Fail-open
+                }
+
                 var report = new GameplayPatternReport
                 {
                     UserId = userId,
@@ -177,7 +221,8 @@ namespace CrushIt.API
                 var json = System.Text.Json.JsonSerializer.Serialize(report);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync($"{_apiBaseUrl}/report-pattern", content);
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/report-pattern", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -200,7 +245,15 @@ namespace CrushIt.API
         {
             try
             {
-                var response = await _httpClient.GetAsync($"{_apiBaseUrl}/achievement-status/{userId}/{achievementType}");
+                if (!_rateLimiter.TryRequest(userId))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for user {userId}");
+                    return new AchievementValidationResult { IsValid = true, Reason = "Rate limit exceeded - client accepted" };
+                }
+
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.GetAsync($"{_apiBaseUrl}/achievement-status/{userId}/{achievementType}"));
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -244,6 +297,14 @@ namespace CrushIt.API
         {
             try
             {
+                // Rate limit by email
+                if (!_rateLimiter.TryRequest(email))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for email {email}");
+                    return new UserRegistrationResult { Success = false, Message = "Rate limit exceeded" };
+                }
+
                 var request = new UserRegistrationRequest
                 {
                     Email = email,
@@ -257,7 +318,8 @@ namespace CrushIt.API
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync($"{_apiBaseUrl}/register", content);
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/register", content));
 
                 var responseJson = await response.Content.ReadAsStringAsync();
                 var result = System.Text.Json.JsonSerializer.Deserialize<UserRegistrationResponse>(responseJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
@@ -301,6 +363,14 @@ namespace CrushIt.API
         {
             try
             {
+                // Rate limit by email
+                if (!_rateLimiter.TryRequest(email))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for email {email}");
+                    return new UserLoginResult { Success = false, Message = "Rate limit exceeded" };
+                }
+
                 var request = new UserLoginRequest
                 {
                     Email = email,
@@ -314,7 +384,8 @@ namespace CrushIt.API
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync($"{_apiBaseUrl}/login", content);
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/login", content));
 
                 var responseJson = await response.Content.ReadAsStringAsync();
                 var result = System.Text.Json.JsonSerializer.Deserialize<UserLoginResponse>(responseJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
@@ -356,10 +427,18 @@ namespace CrushIt.API
         {
             try
             {
+                if (!_rateLimiter.TryRequest(request.UserId))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for user {request.UserId}");
+                    return new ProgressSyncResponse { Success = false, Message = "Rate limit exceeded" };
+                }
+
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                var response = await _httpClient.PostAsync($"{_apiBaseUrl}/sync/progress", content);
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/sync/progress", content));
 
                 var responseJson = await response.Content.ReadAsStringAsync();
                 var result = System.Text.Json.JsonSerializer.Deserialize<ProgressSyncResponse>(responseJson, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
@@ -393,7 +472,15 @@ namespace CrushIt.API
         {
             try
             {
-                var response = await _httpClient.GetAsync($"{_apiBaseUrl}/user/progress?userId={userId}&deviceFingerprint={deviceFingerprint}");
+                if (!_rateLimiter.TryRequest(userId))
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Rate limit exceeded for user {userId}");
+                    return null;
+                }
+
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.GetAsync($"{_apiBaseUrl}/user/progress?userId={userId}&deviceFingerprint={deviceFingerprint}"));
 
                 if (!response.IsSuccessStatusCode)
                 {
@@ -484,6 +571,147 @@ namespace CrushIt.API
             if (patternScore < 30) return "HIGH";
             if (patternScore < 60) return "MEDIUM";
             return "LOW";
+        }
+
+        public async Task<EventLogResponse> LogEventsAsync(EventLogRequest request)
+        {
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(request);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/analytics/events", content));
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Event logging failed: {response.StatusCode}");
+                    return new EventLogResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var result = System.Text.Json.JsonSerializer.Deserialize<EventLogResponse>(responseJson);
+
+                return result ?? new EventLogResponse { Success = false, Message = "Failed to parse response" };
+            }
+            catch (Exception ex)
+            {
+                if (_config.EnableLogging)
+                    Console.WriteLine($"Event logging error: {ex.Message}");
+                return new EventLogResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        public async Task<ErrorReportResponse> ReportErrorAsync(ErrorReport errorReport)
+        {
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(errorReport);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/analytics/error", content));
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Error reporting failed: {response.StatusCode}");
+                    return new ErrorReportResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var result = System.Text.Json.JsonSerializer.Deserialize<ErrorReportResponse>(responseJson);
+
+                return result ?? new ErrorReportResponse { Success = false, Message = "Failed to parse response" };
+            }
+            catch (Exception ex)
+            {
+                if (_config.EnableLogging)
+                    Console.WriteLine($"Error reporting error: {ex.Message}");
+                return new ErrorReportResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        public async Task<UsageStatsResponse> SubmitUsageStatisticsAsync(UsageStatsRequest request)
+        {
+            try
+            {
+                var json = System.Text.Json.JsonSerializer.Serialize(request);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.PostAsync($"{_apiBaseUrl}/analytics/usage", content));
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Usage statistics submission failed: {response.StatusCode}");
+                    return new UsageStatsResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var result = System.Text.Json.JsonSerializer.Deserialize<UsageStatsResponse>(responseJson);
+
+                return result ?? new UsageStatsResponse { Success = false, Message = "Failed to parse response" };
+            }
+            catch (Exception ex)
+            {
+                if (_config.EnableLogging)
+                    Console.WriteLine($"Usage statistics error: {ex.Message}");
+                return new UsageStatsResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        public async Task<HealthCheckResponse> CheckApiHealthAsync()
+        {
+            try
+            {
+                // Check cache first
+                var cacheKey = CacheKeys.System.HealthCheck();
+                var cached = _cache.Get<HealthCheckResponse>(cacheKey);
+                if (cached != null)
+                {
+                    return cached;
+                }
+
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() => 
+                    _httpClient.GetAsync($"{_apiBaseUrl}/health"));
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    if (_config.EnableLogging)
+                        Console.WriteLine($"Health check failed: {response.StatusCode}");
+                    return new HealthCheckResponse { IsHealthy = false, Status = $"HTTP {response.StatusCode}" };
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var result = System.Text.Json.JsonSerializer.Deserialize<HealthCheckResponse>(responseJson);
+
+                if (result != null)
+                {
+                    // Cache the result for 30 seconds
+                    _cache.Set(cacheKey, result, TimeSpan.FromSeconds(30));
+                }
+
+                return result ?? new HealthCheckResponse { IsHealthy = false, Status = "Failed to parse response" };
+            }
+            catch (Exception ex)
+            {
+                if (_config.EnableLogging)
+                    Console.WriteLine($"Health check error: {ex.Message}");
+                return new HealthCheckResponse { IsHealthy = false, Status = ex.Message };
+            }
+        }
+
+        public ApiCache GetCache()
+        {
+            return _cache;
+        }
+
+        public RateLimiter GetRateLimiter()
+        {
+            return _rateLimiter;
         }
     }
 }

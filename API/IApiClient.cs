@@ -16,6 +16,12 @@ namespace CrushIt.API
         Task<UserLoginResult> LoginUserAsync(string email, string password, string deviceFingerprint);
         Task<ProgressSyncResponse> SyncProgressAsync(ProgressSyncRequest request);
         Task<ServerProgressData?> GetServerProgressAsync(string userId, string deviceFingerprint);
+        
+        // Analytics methods
+        Task<EventLogResponse> LogEventsAsync(EventLogRequest request);
+        Task<ErrorReportResponse> ReportErrorAsync(ErrorReport errorReport);
+        Task<UsageStatsResponse> SubmitUsageStatisticsAsync(UsageStatsRequest request);
+        Task<HealthCheckResponse> CheckApiHealthAsync();
     }
 
     public class GameplayPattern
