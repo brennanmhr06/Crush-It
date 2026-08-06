@@ -16,12 +16,31 @@ namespace CrushIt.API
         Task<UserLoginResult> LoginUserAsync(string email, string password, string deviceFingerprint);
         Task<ProgressSyncResponse> SyncProgressAsync(ProgressSyncRequest request);
         Task<ServerProgressData?> GetServerProgressAsync(string userId, string deviceFingerprint);
-        
+
         // Analytics methods
         Task<EventLogResponse> LogEventsAsync(EventLogRequest request);
         Task<ErrorReportResponse> ReportErrorAsync(ErrorReport errorReport);
         Task<UsageStatsResponse> SubmitUsageStatisticsAsync(UsageStatsRequest request);
         Task<HealthCheckResponse> CheckApiHealthAsync();
+
+        // Guild management methods
+        Task<CreateGuildResponse> CreateGuildAsync(CreateGuildRequest request);
+        Task<JoinGuildResponse> JoinGuildAsync(JoinGuildRequest request);
+        Task<LeaveGuildResponse> LeaveGuildAsync(LeaveGuildRequest request);
+        Task<GetGuildResponse> GetGuildAsync(GetGuildRequest request);
+        Task<SearchGuildsResponse> SearchGuildsAsync(SearchGuildsRequest request);
+        Task<GetUserGuildResponse> GetUserGuildAsync(GetUserGuildRequest request);
+        Task<UpdateGuildResponse> UpdateGuildAsync(UpdateGuildRequest request);
+        Task<TransferLeadershipResponse> TransferLeadershipAsync(TransferLeadershipRequest request);
+        Task<PromoteMemberResponse> PromoteMemberAsync(PromoteMemberRequest request);
+        Task<DemoteMemberResponse> DemoteMemberAsync(DemoteMemberRequest request);
+        Task<KickMemberResponse> KickMemberAsync(KickMemberRequest request);
+        Task<SendGuildInvitationResponse> SendGuildInvitationAsync(SendGuildInvitationRequest request);
+        Task<AcceptGuildInvitationResponse> AcceptGuildInvitationAsync(AcceptGuildInvitationRequest request);
+        Task<DeclineGuildInvitationResponse> DeclineGuildInvitationAsync(DeclineGuildInvitationRequest request);
+        Task<GetGuildInvitationsResponse> GetGuildInvitationsAsync(GetGuildInvitationsRequest request);
+        Task<GetTopGuildsResponse> GetTopGuildsAsync(GetTopGuildsRequest request);
+        Task<GetGuildRankResponse> GetGuildRankAsync(GetGuildRankRequest request);
     }
 
     public class GameplayPattern

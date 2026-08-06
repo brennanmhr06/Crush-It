@@ -128,7 +128,7 @@ namespace CrushIt.UI
 
         private void InitializeParticles()
         {
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 45, 890, 80, 480));
+            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 45, 890, 80, 530));
         }
 
         private void StartAnimation()
@@ -142,7 +142,7 @@ namespace CrushIt.UI
         private void AnimationTimer_Tick(object? sender, EventArgs e)
         {
             pulsePhase++;
-            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 100);
+            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 120);
             this.Invalidate();
         }
 
@@ -234,13 +234,19 @@ namespace CrushIt.UI
         private void InitializeComponent()
         {
             this.Text = "Crush It! - Lobby";
-            this.Size = new Size(900, 600);
+            this.Size = new Size(900, 650);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
 
             this.KeyPreview = true;
-            this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) Application.Exit(); };
+            this.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    Application.Exit();
+                }
+            };
 
             this.MouseDown += LobbyFrame_MouseDown;
             this.MouseMove += LobbyFrame_MouseMove;

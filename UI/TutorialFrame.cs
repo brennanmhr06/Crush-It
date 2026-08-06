@@ -73,20 +73,26 @@ namespace CrushIt.UI
             gameLoopTimer.Tick += GameLoopTimer_Tick;
             gameLoopTimer.Start();
 
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(bgRand, 30, 550, 60, 650));
+            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(bgRand, 30, 890, 80, 530));
         }
 
         private void InitializeComponent()
         {
             this.Text = "Crush It! - Tutorial Level";
-            this.Size = new Size(550, 700);
+            this.Size = new Size(900, 650);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
 
             this.FormClosed += (s, e) => Application.Exit();
             this.KeyPreview = true;
-            this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) this.Close(); };
+            this.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    this.Close();
+                }
+            };
         }
 
         private void GenerateBoardWithoutInitialMatches()
@@ -513,7 +519,7 @@ namespace CrushIt.UI
             }
 
             pulsePhase++;
-            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 50, this.ClientSize.Height - 20);
+            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 120);
 
             this.Invalidate();
         }

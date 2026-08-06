@@ -186,7 +186,7 @@ namespace CrushIt.UI
             int navHeight = 80;
             int navWidth = clientWidth / 4;
 
-            string[] labels = { "STATS", "HOME", "ACHIEVEMENTS", "GUILDS" };
+            string[] labels = { "STATS", "HOME", "ACHIEVES", "GUILDS" };
             Color[] iconColors = {
                 Color.FromArgb(255, 255, 200, 80),
                 Color.FromArgb(255, 140, 240, 255),
@@ -255,17 +255,6 @@ namespace CrushIt.UI
                 {
                     Color labelColor = items[i] == currentNav ? Color.White : Color.FromArgb(255, 220, 220, 240);
                     DrawOutlinedText(g, labels[i], labelFont, new Rectangle(centerX - 50, centerY + 4, 100, 24), labelColor, Color.Black, 1, sf);
-                }
-
-
-                if (items[i] == NavItem.Guilds)
-                {
-                    using (Font lockFont = new Font("Segoe UI Emoji", 32, FontStyle.Bold))
-                    using (SolidBrush lockBrush = new SolidBrush(Color.FromArgb(180, 255, 255, 255)))
-                    using (StringFormat lockSf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                    {
-                        g.DrawString("🔒", lockFont, lockBrush, centerX, centerY, lockSf);
-                    }
                 }
             }
         }

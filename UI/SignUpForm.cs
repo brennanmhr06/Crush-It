@@ -112,7 +112,7 @@ namespace CrushIt.UI
         private void AnimationTimer_Tick(object? sender, EventArgs e)
         {
             pulsePhase++;
-            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 100);
+            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 120);
             this.Invalidate();
         }
 

@@ -109,8 +109,8 @@ namespace CrushIt.UI
             InitializeComponent();
             GameData.ResetScore();
             
-            // Initialize background particles
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 40, 550, 80, 480));
+            // Initialize background particles - use form size
+            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 40, 890, 80, 530));
             
             // Start background music with low volume for gameplay
             SoundHelper.StartBackgroundMusic(0.08f); // 8% volume during gameplay (very faded)
@@ -148,8 +148,8 @@ namespace CrushIt.UI
 
             int gridTotalWidth = Cols * TileSize;
             int gridTotalHeight = Rows * TileSize;
-            GridOffsetX = (550 - gridTotalWidth) / 2;
-            GridOffsetY = 160 + (12 - Rows) * 8;
+            GridOffsetX = (900 - gridTotalWidth) / 2;
+            GridOffsetY = 130 + (12 - Rows) * 8;
 
             TargetPointGoal = 1000 + (level - 1) * 500;
         }
@@ -157,7 +157,7 @@ namespace CrushIt.UI
         private void InitializeComponent()
         {
             this.Text = $"Crush It! - Level {levelNumber}";
-            this.Size = new Size(550, 700);
+            this.Size = new Size(900, 650);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -910,7 +910,7 @@ namespace CrushIt.UI
         private void GameLoopTimer_Tick(object? sender, EventArgs e)
         {
             // Update background particles
-            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 100);
+            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 120);
             pulsePhase++;
 
             for (int i = burstParticles.Count - 1; i >= 0; i--)
@@ -955,9 +955,9 @@ namespace CrushIt.UI
             g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
 
             // Draw styled level banner
-            Rectangle banner = new Rectangle(50, 5, 436, 60);
+            Rectangle banner = new Rectangle(200, 10, 500, 50);
             CrushItStyleHelper.DrawPanel(g, banner, Color.FromArgb(255, 220, 80, 120), Color.FromArgb(255, 190, 60, 100), Color.FromArgb(255, 160, 50, 80));
-            
+
             using (Font titleFont = new Font("Comic Sans MS", 20, FontStyle.Bold))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
@@ -965,9 +965,9 @@ namespace CrushIt.UI
             }
 
             // Draw styled score and gold panels
-            Rectangle scorePanel = new Rectangle(50, 75, 220, 45);
+            Rectangle scorePanel = new Rectangle(50, 70, 400, 40);
             CrushItStyleHelper.DrawPanel(g, scorePanel, Color.FromArgb(255, 100, 180, 220), Color.FromArgb(255, 70, 150, 190), Color.FromArgb(255, 50, 120, 160));
-            
+
             using (Font scoreFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
@@ -975,9 +975,9 @@ namespace CrushIt.UI
                 CrushItStyleHelper.DrawOutlinedText(g, scoreText, scoreFont, scorePanel, Color.White, Color.FromArgb(100, 0, 50, 100), 2, sf);
             }
 
-            Rectangle goldPanel = new Rectangle(280, 75, 220, 45);
+            Rectangle goldPanel = new Rectangle(450, 70, 400, 40);
             CrushItStyleHelper.DrawPanel(g, goldPanel, Color.FromArgb(255, 220, 180, 80), Color.FromArgb(255, 190, 150, 50), Color.FromArgb(255, 160, 120, 30));
-            
+
             using (Font goldFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
@@ -1089,7 +1089,7 @@ namespace CrushIt.UI
                 int bannerWidth = 500;
                 int bannerHeight = 90;
                 int bannerX = (this.ClientSize.Width - bannerWidth) / 2;
-                Rectangle compBanner = new Rectangle(bannerX, 240, bannerWidth, bannerHeight);
+                Rectangle compBanner = new Rectangle(bannerX, 280, bannerWidth, bannerHeight);
                 int cornerRadius = 20;
 
                 using (SolidBrush glow = new SolidBrush(Color.FromArgb(100, 255, 100, 200)))

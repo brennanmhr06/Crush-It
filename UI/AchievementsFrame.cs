@@ -64,7 +64,7 @@ namespace CrushIt.UI
 
         private void InitializeParticles()
         {
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 45, 890, 80, 480));
+            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 45, 890, 80, 530));
         }
 
         private void LoadUserAchievements()
@@ -101,7 +101,7 @@ namespace CrushIt.UI
         private void InitializeComponent()
         {
             this.Text = "Crush It! - Achievements";
-            this.Size = new Size(900, 600);
+            this.Size = new Size(900, 650);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -225,7 +225,7 @@ namespace CrushIt.UI
         {
             pulsePhase++;
 
-            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 100);
+            CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 120);
 
 
             if (isCoinAnimating)

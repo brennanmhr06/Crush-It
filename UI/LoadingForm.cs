@@ -161,12 +161,15 @@ namespace CrushIt.UI
             }
 
             // Initialize sparkles
+            int screenWidth = Screen.PrimaryScreen.WorkingArea.Width;
+            int screenHeight = Screen.PrimaryScreen.WorkingArea.Height;
+            
             for (int i = 0; i < 15; i++)
             {
                 sparkles.Add(new Sparkle
                 {
-                    X = rand.Next(50, 500),
-                    Y = rand.Next(100, 600),
+                    X = rand.Next(50, screenWidth - 50),
+                    Y = rand.Next(100, screenHeight - 100),
                     Size = rand.Next(8, 15),
                     Alpha = rand.Next(100, 200),
                     Rotation = rand.Next(0, 360),
@@ -185,6 +188,235 @@ namespace CrushIt.UI
                 Color.FromArgb(255, 120, 50)
             };
             return palette[rand.Next(palette.Length)];
+        }
+
+        private void DrawPixelCandy(Graphics g, CandyType candy, int x, int y, int size)
+        {
+            Color mainColor = Color.Red;
+            Color darkColor = Color.DarkRed;
+            Color lightColor = Color.Pink;
+
+            switch (candy)
+            {
+                case CandyType.RedStrawberry:
+                    mainColor = Color.FromArgb(235, 45, 75);
+                    darkColor = Color.FromArgb(135, 10, 35);
+                    lightColor = Color.FromArgb(255, 140, 160);
+                    break;
+                case CandyType.BlueGummy:
+                    mainColor = Color.FromArgb(35, 165, 245);
+                    darkColor = Color.FromArgb(10, 75, 155);
+                    lightColor = Color.FromArgb(150, 225, 255);
+                    break;
+                case CandyType.GreenApple:
+                    mainColor = Color.FromArgb(45, 205, 85);
+                    darkColor = Color.FromArgb(15, 105, 35);
+                    lightColor = Color.FromArgb(150, 255, 175);
+                    break;
+                case CandyType.YellowLemon:
+                    mainColor = Color.FromArgb(255, 215, 35);
+                    darkColor = Color.FromArgb(170, 125, 0);
+                    lightColor = Color.FromArgb(255, 245, 160);
+                    break;
+                case CandyType.PurplePlum:
+                    mainColor = Color.FromArgb(175, 75, 215);
+                    darkColor = Color.FromArgb(95, 20, 125);
+                    lightColor = Color.FromArgb(225, 155, 255);
+                    break;
+            }
+
+            using (SolidBrush b = new SolidBrush(Color.Black))
+                g.FillRectangle(b, x, y, size, size);
+
+            Rectangle inner = new Rectangle(x + 2, y + 2, size - 4, size - 4);
+            using (SolidBrush b = new SolidBrush(mainColor))
+                g.FillRectangle(b, inner);
+
+            using (SolidBrush b = new SolidBrush(lightColor))
+            {
+                g.FillRectangle(b, inner.X, inner.Y, inner.Width, 3);
+                g.FillRectangle(b, inner.X, inner.Y, 3, inner.Height);
+            }
+
+            using (SolidBrush b = new SolidBrush(darkColor))
+            {
+                g.FillRectangle(b, inner.X, inner.Y + inner.Height - 3, inner.Width, 3);
+                g.FillRectangle(b, inner.X + inner.Width - 3, inner.Y, 3, inner.Height);
+            }
+
+            int cx = x + (size / 2);
+            int cy = y + (size / 2);
+
+            switch (candy)
+            {
+                case CandyType.RedStrawberry:
+                    DrawPixelStrawberry(g, cx, cy);
+                    break;
+                case CandyType.BlueGummy:
+                    DrawPixelBlueGummy(g, cx, cy);
+                    break;
+                case CandyType.GreenApple:
+                    DrawPixelGreenApple(g, cx, cy);
+                    break;
+                case CandyType.YellowLemon:
+                    DrawPixelYellowLemon(g, cx, cy);
+                    break;
+                case CandyType.PurplePlum:
+                    DrawPixelPurplePlum(g, cx, cy);
+                    break;
+            }
+        }
+
+        private void DrawPixelStrawberry(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush leaf = new SolidBrush(Color.FromArgb(40, 190, 60)))
+            {
+                g.FillRectangle(leaf, cx - 5, cy - 8, 10, 2);
+                g.FillRectangle(leaf, cx - 7, cy - 7, 3, 2);
+                g.FillRectangle(leaf, cx + 4, cy - 7, 3, 2);
+            }
+
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(255, 75, 100)))
+            {
+                g.FillRectangle(body, cx - 6, cy - 5, 12, 6);
+                g.FillRectangle(body, cx - 4, cy + 1, 8, 4);
+                g.FillRectangle(body, cx - 2, cy + 5, 4, 3);
+            }
+
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(160, 20, 45)))
+            {
+                g.FillRectangle(shadow, cx + 4, cy - 4, 2, 4);
+                g.FillRectangle(shadow, cx + 2, cy + 1, 2, 3);
+                g.FillRectangle(shadow, cx, cy + 5, 2, 2);
+            }
+
+            using (SolidBrush seed = new SolidBrush(Color.FromArgb(255, 240, 120)))
+            {
+                g.FillRectangle(seed, cx - 3, cy - 3, 2, 2);
+                g.FillRectangle(seed, cx + 1, cy - 3, 2, 2);
+                g.FillRectangle(seed, cx - 1, cy, 2, 2);
+                g.FillRectangle(seed, cx - 2, cy + 3, 2, 2);
+            }
+
+            using (SolidBrush gloss = new SolidBrush(Color.White))
+            {
+                g.FillRectangle(gloss, cx - 5, cy - 4, 2, 2);
+            }
+        }
+
+        private void DrawPixelBlueGummy(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(100, 210, 255)))
+            {
+                g.FillRectangle(body, cx - 3, cy - 8, 6, 2);
+                g.FillRectangle(body, cx - 6, cy - 5, 12, 4);
+                g.FillRectangle(body, cx - 8, cy - 1, 16, 5);
+                g.FillRectangle(body, cx - 6, cy + 4, 12, 4);
+                g.FillRectangle(body, cx - 3, cy + 7, 6, 2);
+            }
+
+            using (SolidBrush dark = new SolidBrush(Color.FromArgb(0, 80, 175)))
+            {
+                g.FillRectangle(dark, cx + 3, cy - 5, 3, 3);
+                g.FillRectangle(dark, cx + 5, cy - 1, 3, 5);
+                g.FillRectangle(dark, cx + 3, cy + 4, 3, 3);
+                g.FillRectangle(dark, cx - 1, cy + 7, 5, 2);
+            }
+
+            using (SolidBrush shine = new SolidBrush(Color.FromArgb(220, 250, 255)))
+            {
+                g.FillRectangle(shine, cx - 5, cy - 4, 3, 3);
+                g.FillRectangle(shine, cx - 6, cy, 3, 3);
+                g.FillRectangle(shine, cx - 5, cy + 4, 2, 2);
+            }
+        }
+
+        private void DrawPixelGreenApple(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush stem = new SolidBrush(Color.FromArgb(120, 75, 30)))
+            {
+                g.FillRectangle(stem, cx - 1, cy - 9, 2, 3);
+            }
+
+            using (SolidBrush leaf = new SolidBrush(Color.FromArgb(110, 235, 60)))
+            {
+                g.FillRectangle(leaf, cx + 1, cy - 9, 3, 2);
+            }
+
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(110, 230, 60)))
+            {
+                g.FillRectangle(body, cx - 7, cy - 5, 14, 9);
+                g.FillRectangle(body, cx - 5, cy + 4, 10, 4);
+            }
+
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(20, 110, 35)))
+            {
+                g.FillRectangle(shadow, cx + 4, cy - 4, 3, 8);
+                g.FillRectangle(shadow, cx + 2, cy + 4, 3, 3);
+                g.FillRectangle(shadow, cx - 1, cy + 6, 3, 2);
+            }
+
+            using (SolidBrush gloss = new SolidBrush(Color.White))
+            {
+                g.FillRectangle(gloss, cx - 5, cy - 4, 2, 4);
+            }
+        }
+
+        private void DrawPixelYellowLemon(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(255, 240, 80)))
+            {
+                g.FillRectangle(body, cx - 2, cy - 8, 4, 2);
+                g.FillRectangle(body, cx - 5, cy - 5, 10, 3);
+                g.FillRectangle(body, cx - 7, cy - 2, 14, 5);
+                g.FillRectangle(body, cx - 5, cy + 3, 10, 3);
+                g.FillRectangle(body, cx - 2, cy + 6, 4, 2);
+            }
+
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(190, 130, 0)))
+            {
+                g.FillRectangle(shadow, cx + 3, cy - 2, 4, 5);
+                g.FillRectangle(shadow, cx + 1, cy + 3, 4, 2);
+                g.FillRectangle(shadow, cx - 1, cy + 6, 2, 2);
+            }
+
+            using (SolidBrush line = new SolidBrush(Color.FromArgb(255, 180, 20)))
+            {
+                g.FillRectangle(line, cx - 4, cy, 8, 2);
+            }
+
+            using (SolidBrush gloss = new SolidBrush(Color.White))
+            {
+                g.FillRectangle(gloss, cx - 4, cy - 4, 2, 2);
+            }
+        }
+
+        private void DrawPixelPurplePlum(Graphics g, int cx, int cy)
+        {
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(160, 60, 200)))
+            {
+                g.FillRectangle(body, cx - 5, cy - 7, 10, 2);
+                g.FillRectangle(body, cx - 7, cy - 4, 14, 9);
+                g.FillRectangle(body, cx - 5, cy + 5, 10, 2);
+            }
+
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(90, 15, 130)))
+            {
+                g.FillRectangle(shadow, cx + 4, cy - 3, 3, 8);
+                g.FillRectangle(shadow, cx + 1, cy + 5, 3, 2);
+            }
+
+            using (SolidBrush swirl = new SolidBrush(Color.White))
+            {
+                g.FillRectangle(swirl, cx - 4, cy - 3, 2, 2);
+                g.FillRectangle(swirl, cx - 1, cy - 1, 3, 3);
+                g.FillRectangle(swirl, cx + 1, cy + 1, 2, 2);
+            }
+
+            using (SolidBrush gloss = new SolidBrush(Color.FromArgb(240, 200, 255)))
+            {
+                g.FillRectangle(gloss, cx - 5, cy - 5, 4, 2);
+            }
         }
 
         private async void AnimationTimer_Tick(object? sender, EventArgs e)
@@ -615,14 +847,30 @@ namespace CrushIt.UI
             {
                 Rectangle fillRect = new Rectangle(barX + 3, barY + 3, currentFillWidth - 6, barHeight - 6);
 
+                // Draw pixelated candies in the progress bar
+                int candySize = 28;
+                int candySpacing = 32;
+                int candyCount = currentFillWidth / candySpacing;
+                
+                // Fill the entire progress bar area with a colorful background
+                Rectangle fullFillRect = new Rectangle(barX + 3, barY + 3, currentFillWidth - 6, barHeight - 6);
+                using (LinearGradientBrush bgFill = new LinearGradientBrush(
+                    fullFillRect, 
+                    Color.FromArgb(255, 80, 180), 
+                    Color.FromArgb(255, 240, 80), 
+                    LinearGradientMode.Horizontal))
+                {
+                    g.FillRoundedRectangle(bgFill, fullFillRect, 18);
+                }
+                
                 // Draw segment dividers for candy bar effect
                 int segmentWidth = 30;
                 int segmentCount = currentFillWidth / segmentWidth;
                 
                 for (int i = 0; i < segmentCount; i++)
                 {
-                    int segX = barX + 3 + i * segmentWidth;
-                    int segWidth = Math.Min(segmentWidth - 2, currentFillWidth - 6 - i * segmentWidth);
+                    int segX = barX + 8 + i * segmentWidth;
+                    int segWidth = Math.Min(segmentWidth - 2, currentFillWidth - 16 - i * segmentWidth);
                     if (segWidth <= 0) break;
                     
                     Rectangle segRect = new Rectangle(segX, barY + 3, segWidth, barHeight - 6);
@@ -636,6 +884,25 @@ namespace CrushIt.UI
                         g.FillRoundedRectangle(segBrush, segRect, 8);
                     }
                 }
+                
+                // Switch to pixelated rendering for candies
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+                g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+                
+                for (int i = 0; i < candyCount; i++)
+                {
+                    int candyX = barX + 8 + i * candySpacing;
+                    int candyY = barY + 4;
+                    
+                    CandyType candyType = (CandyType)(i % 5);
+                    DrawPixelCandy(g, candyType, candyX, candyY, candySize);
+                }
+                
+                // Switch back to anti-alias for other elements
+                g.SmoothingMode = SmoothingMode.AntiAlias;
+                g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+                g.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
                 // Draw gloss effect
                 using (SolidBrush gloss = new SolidBrush(Color.FromArgb(100, 255, 255, 255)))

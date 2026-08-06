@@ -43,6 +43,15 @@ namespace CrushIt.Data
 
         [BsonElement("highestScore")]
         public int HighestScore { get; set; } = 0;
+
+        [BsonElement("guildId")]
+        public string? GuildId { get; set; }
+
+        [BsonElement("guildName")]
+        public string? GuildName { get; set; }
+
+        [BsonElement("guildRole")]
+        public GuildRole GuildRole { get; set; } = GuildRole.Member;
     }
 }
 
