@@ -20,6 +20,8 @@ namespace CrushIt.UI
 
     public static class CrushItStyleHelper
     {
+        private static string[] navLabels = { "HOME", "LEVELS", "ACHIEVES", "GUILDS" };
+
         public static readonly Color[] ParticleColors = {
             Color.FromArgb(235, 45, 75),
             Color.FromArgb(35, 165, 245),
@@ -186,13 +188,6 @@ namespace CrushIt.UI
             int navHeight = 80;
             int navWidth = clientWidth / 4;
 
-            string[] labels = { "STATS", "HOME", "ACHIEVES", "GUILDS" };
-            Color[] iconColors = {
-                Color.FromArgb(255, 255, 200, 80),
-                Color.FromArgb(255, 140, 240, 255),
-                Color.FromArgb(255, 255, 140, 200),
-                Color.FromArgb(255, 220, 140, 255)
-            };
             NavItem[] items = { NavItem.Home, NavItem.Levels, NavItem.Achievements, NavItem.Guilds };
 
             for (int i = 0; i < 4; i++)
@@ -248,54 +243,70 @@ namespace CrushIt.UI
                     }
                 }
 
-                DrawPixelIcon(g, centerX, centerY - 15, iconColors[i], i);
-
-                using (Font labelFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
-                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                {
-                    Color labelColor = items[i] == currentNav ? Color.White : Color.FromArgb(255, 220, 220, 240);
-                    DrawOutlinedText(g, labels[i], labelFont, new Rectangle(centerX - 50, centerY + 4, 100, 24), labelColor, Color.Black, 1, sf);
-                }
+                DrawRainbowPixelText(g, navLabels[i], centerX, centerY, items[i] == currentNav);
             }
         }
 
-        public static void DrawPixelIcon(Graphics g, int cx, int cy, Color color, int itemIndex)
+        public static void DrawRainbowPixelText(Graphics g, string text, int cx, int cy, bool isActive)
         {
-            Color shadowColor = Color.FromArgb(color.R / 2, color.G / 2, color.B / 2);
-            Color highlightColor = Color.FromArgb(Math.Min(255, color.R + 80), Math.Min(255, color.G + 80), Math.Min(255, color.B + 80));
+            Color[] rainbowColors = [
+                Color.FromArgb(255, 255, 100, 100),
+                Color.FromArgb(255, 255, 200, 100),
+                Color.FromArgb(255, 100, 255, 100),
+                Color.FromArgb(255, 100, 200, 255),
+                Color.FromArgb(255, 200, 100, 255),
+                Color.FromArgb(255, 255, 100, 200)
+            ];
 
-            using (SolidBrush iconBrush = new SolidBrush(color))
-            using (SolidBrush shadowBrush = new SolidBrush(shadowColor))
-            using (SolidBrush highlightBrush = new SolidBrush(highlightColor))
+            using (Font pixelFont = new Font("Impact", 16, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                switch (itemIndex)
+                // Draw thick black outline
+                for (int dx = -3; dx <= 3; dx++)
                 {
-                    case 0:
-                        g.FillEllipse(shadowBrush, cx - 12, cy - 6, 24, 20);
-                        g.FillEllipse(iconBrush, cx - 10, cy - 8, 20, 18);
-                        g.FillEllipse(iconBrush, cx - 8, cy - 12, 16, 10);
-                        g.FillEllipse(iconBrush, cx - 3, cy - 2, 6, 8);
-                        g.FillEllipse(highlightBrush, cx - 8, cy - 6, 6, 6);
-                        break;
-                    case 1:
-                        g.FillEllipse(shadowBrush, cx - 16, cy - 6, 32, 18);
-                        g.FillEllipse(iconBrush, cx - 14, cy - 8, 28, 16);
-                        g.FillEllipse(iconBrush, cx - 18, cy - 4, 8, 8);
-                        g.FillEllipse(iconBrush, cx + 10, cy - 4, 8, 8);
-                        g.FillEllipse(highlightBrush, cx - 10, cy - 6, 8, 6);
-                        break;
-                    case 2:
-                        g.FillEllipse(shadowBrush, cx - 14, cy - 8, 28, 22);
-                        g.FillEllipse(iconBrush, cx - 12, cy - 10, 24, 20);
-                        g.FillEllipse(iconBrush, cx - 12, cy - 14, 24, 10);
-                        g.FillEllipse(highlightBrush, cx - 8, cy - 8, 10, 6);
-                        break;
-                    case 3:
-                        g.FillEllipse(shadowBrush, cx - 8, cy - 8, 16, 24);
-                        g.FillEllipse(iconBrush, cx - 6, cy - 10, 12, 22);
-                        g.FillEllipse(iconBrush, cx - 10, cy - 6, 20, 12);
-                        g.FillEllipse(highlightBrush, cx - 4, cy - 8, 6, 8);
-                        break;
+                    for (int dy = -3; dy <= 3; dy++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        int alpha = isActive ? 200 : 120;
+                        g.DrawString(text, pixelFont, new SolidBrush(Color.FromArgb(alpha, 0, 0, 0)), cx + dx, cy + dy, sf);
+                    }
+                }
+
+                // Draw white inner outline for pop
+                for (int dx = -1; dx <= 1; dx++)
+                {
+                    for (int dy = -1; dy <= 1; dy++)
+                    {
+                        if (dx == 0 && dy == 0) continue;
+                        int alpha = isActive ? 150 : 80;
+                        g.DrawString(text, pixelFont, new SolidBrush(Color.FromArgb(alpha, 255, 255, 255)), cx + dx, cy + dy, sf);
+                    }
+                }
+
+                // Draw rainbow text character by character
+                for (int i = 0; i < text.Length; i++)
+                {
+                    Color charColor = rainbowColors[i % rainbowColors.Length];
+                    if (!isActive)
+                    {
+                        charColor = Color.FromArgb(140, charColor.R, charColor.G, charColor.B);
+                    }
+
+                    char c = text[i];
+                    SizeF charSize = g.MeasureString(c.ToString(), pixelFont);
+                    float charX = cx - (text.Length * charSize.Width / 2) + (i * charSize.Width);
+                    float charY = cy - charSize.Height / 2;
+
+                    g.DrawString(c.ToString(), pixelFont, new SolidBrush(charColor), charX, charY);
+                }
+
+                // Add highlight effect for active items
+                if (isActive)
+                {
+                    using (SolidBrush highlight = new SolidBrush(Color.FromArgb(100, 255, 255, 255)))
+                    {
+                        g.DrawString(text, pixelFont, highlight, cx - 2, cy - 2, sf);
+                    }
                 }
             }
         }
@@ -358,4 +369,3 @@ namespace CrushIt.UI
         }
     }
 }
-
