@@ -126,6 +126,13 @@ namespace CrushIt.UI
             InitializeComponent();
             InitializeParticles();
             LoadAllPageData();
+            
+            // Ensure we start on Levels page
+            currentPage = PageType.Levels;
+            targetPage = PageType.Levels;
+            isTransitioning = false;
+            transitionProgress = 0f;
+            
             StartAnimation();
 
             MobileHelper.ApplyMobileScaling(this);
@@ -140,10 +147,16 @@ namespace CrushIt.UI
             this.MaximizeBox = false;
 
             this.KeyPreview = true;
-            this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) Application.Exit(); };
+            this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) this.Close(); };
             this.KeyPress += MainFrame_KeyPress;
             this.MouseDown += MainFrame_MouseDown;
             this.FormClosed += MainFrame_FormClosed;
+            this.FormClosed += (s, e) => {
+                if (Application.OpenForms.Count == 0)
+                {
+                    Application.Exit();
+                }
+            };
             this.MouseMove += MainFrame_MouseMove;
             this.MouseLeave += MainFrame_MouseLeave;
 
@@ -229,6 +242,12 @@ namespace CrushIt.UI
             CalculateRowProgression();
             GenerateLevelsForCurrentRows();
             UpdateLevelStatus();
+        }
+
+        public void RefreshLevelsData()
+        {
+            LoadLevelsData();
+            this.Invalidate();
         }
 
         private void CalculateRowProgression()
@@ -853,9 +872,20 @@ namespace CrushIt.UI
                     int dy = e.Y - level.Y;
                     if (dx * dx + dy * dy <= nodeRadius * nodeRadius)
                     {
+                        // Close any existing GameFrame first
+                        foreach (Form form in Application.OpenForms)
+                        {
+                            if (form is GameFrame gameFrame)
+                            {
+                                gameFrame.Close();
+                                gameFrame.Dispose();
+                            }
+                        }
+
                         GameFrame game = new GameFrame(currentUser, level.Number);
                         game.Show();
                         this.Hide();
+                        this.Dispose();
                         break;
                     }
                 }

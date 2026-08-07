@@ -1,0 +1,43 @@
+{
+  "Powerups": [
+    {
+      "Name": "StripedCandyHorizontal",
+      "DisplayName": "Horizontal Striped Candy",
+      "Description": "Clears entire row when matched",
+      "MinLevel": 5,
+      "MatchRequirement": 4,
+      "SpecialAbility": "ClearRow",
+      "ScoreMultiplier": 2.0,
+      "GoldMultiplier": 1.5,
+      "ParticleEffect": "HorizontalExplosion"
+    },
+    {
+      "Name": "StripedCandyVertical",
+      "DisplayName": "Vertical Striped Candy",
+      "Description": "Clears entire column when matched",
+      "MinLevel": 5,
+      "MatchRequirement": 4,
+      "SpecialAbility": "ClearColumn",
+      "ScoreMultiplier": 2.0,
+      "GoldMultiplier": 1.5,
+      "ParticleEffect": "VerticalExplosion"
+    },
+    {
+      "Name": "ColorBomb",
+      "DisplayName": "Color Bomb",
+      "Description": "Clears all candies of matched color",
+      "MinLevel": 7,
+      "MatchRequirement": 5,
+      "SpecialAbility": "ClearColor",
+      "ScoreMultiplier": 3.0,
+      "GoldMultiplier": 2.0,
+      "ParticleEffect": "ColorExplosion"
+    }
+  ],
+  "PowerupSettings": {
+    "ExplosionDuration": 500,
+    "ParticleCount": 20,
+    "ChainReactionEnabled": true,
+    "MaxChainDepth": 3
+  }
+}

@@ -9,6 +9,7 @@ using MongoDB.Driver;
 using NAudio.Wave;
 using CrushIt.Data;
 using CrushIt.Core;
+using CrushIt.UI;
 
 namespace CrushIt.UI
 {
@@ -91,7 +92,12 @@ namespace CrushIt.UI
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
 
-            this.FormClosed += (s, e) => Application.Exit();
+            this.FormClosed += (s, e) => {
+                if (Application.OpenForms.Count == 0)
+                {
+                    Application.Exit();
+                }
+            };
             this.KeyPreview = true;
             this.KeyDown += (s, e) =>
             {
@@ -144,6 +150,20 @@ namespace CrushIt.UI
                 System.Diagnostics.Debug.WriteLine($"Failed to update tutorial status: {ex.Message}");
             }
 
+            // Check if MainFrame already exists and refresh it instead of creating new one
+            foreach (Form form in Application.OpenForms)
+            {
+                if (form is MainFrame mainFrame)
+                {
+                    mainFrame.RefreshLevelsData();
+                    mainFrame.Show();
+                    this.Hide();
+                    this.Dispose();
+                    return;
+                }
+            }
+
+            // If no MainFrame exists, create a new one
             MainFrame main = new MainFrame(currentUser, database);
             main.Show();
 
@@ -409,6 +429,20 @@ namespace CrushIt.UI
 
                     await Task.Delay(3000);
 
+                    // Check if MainFrame already exists and refresh it instead of creating new one
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        if (form is MainFrame mainFrame)
+                        {
+                            mainFrame.RefreshLevelsData();
+                            mainFrame.Show();
+                            this.Hide();
+                            this.Dispose();
+                            return;
+                        }
+                    }
+
+                    // If no MainFrame exists, create a new one
                     MainFrame main = new MainFrame(currentUser, database);
                     main.Show();
 
@@ -1136,9 +1170,6 @@ namespace CrushIt.UI
             int cx = x + (size / 2);
             int cy = animatedY + (size / 2);
 
-            // Draw sparkle effects
-            DrawCandySparkles(g, cx, cy, candy, pulsePhase);
-
             switch (candy)
             {
                 case CandyType.RedStrawberry:
@@ -1160,34 +1191,6 @@ namespace CrushIt.UI
             
             // Top shine overlay
             DrawCandyShine(g, inner, pulsePhase);
-        }
-        
-        private void DrawCandySparkles(Graphics g, int cx, int cy, CandyType candy, int phase)
-        {
-            // Animated sparkles that move around the candy
-            int sparkleOffset = phase % 60;
-            float sparkleAlpha = 1.0f - (sparkleOffset / 60.0f);
-            
-            if (sparkleAlpha > 0)
-            {
-                int sparkleX = cx + (int)(10 * Math.Cos(phase * 0.1));
-                int sparkleY = cy + (int)(10 * Math.Sin(phase * 0.1));
-                
-                using (SolidBrush sparkle = new SolidBrush(Color.FromArgb((int)(255 * sparkleAlpha), 255, 255, 255)))
-                {
-                    // Draw small sparkle star
-                    Point[] starPoints = new Point[4];
-                    for (int i = 0; i < 4; i++)
-                    {
-                        double angle = i * Math.PI / 2;
-                        starPoints[i] = new Point(
-                            (int)(sparkleX + Math.Cos(angle) * 3),
-                            (int)(sparkleY + Math.Sin(angle) * 3)
-                        );
-                    }
-                    g.FillPolygon(sparkle, starPoints);
-                }
-            }
         }
         
         private void DrawCandyShine(Graphics g, Rectangle rect, int phase)
@@ -1306,13 +1309,6 @@ namespace CrushIt.UI
                 g.FillRectangle(shine, cx - 6 + shineOffset, cy - 6, 4, 4);
                 g.FillRectangle(shine, cx - 8 + shineOffset, cy - 1, 4, 4);
                 g.FillRectangle(shine, cx - 6 + shineOffset, cy + 4, 3, 3);
-            }
-            
-            // Extra sparkle
-            using (SolidBrush sparkle = new SolidBrush(Color.FromArgb(180, 255, 255, 255)))
-            {
-                g.FillEllipse(sparkle, cx - 2, cy - 8, 2, 2);
-                g.FillEllipse(sparkle, cx + 3, cy + 6, 2, 2);
             }
             
             // Gummy bear ear detail

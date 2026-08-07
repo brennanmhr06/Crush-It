@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using MongoDB.Driver;
@@ -9,6 +10,7 @@ using MongoDB.Bson;
 using CrushIt.Data;
 using CrushIt.Core;
 using CrushIt.API;
+using CrushIt.UI;
 
 namespace CrushIt.UI
 {
@@ -20,6 +22,15 @@ namespace CrushIt.UI
         public int MaxDisplayTime { get; set; } = 180;
         public float Y { get; set; } = -100;
         public float TargetY { get; set; } = 50;
+    }
+
+    public class MatchInfo
+    {
+        public List<Point> MatchedPoints { get; set; } = new List<Point>();
+        public int MatchLength { get; set; }
+        public bool IsHorizontal { get; set; }
+        public Point CreationPoint { get; set; }
+        public CandyType CandyType { get; set; }
     }
 
     public class GameFrame : Form
@@ -165,7 +176,10 @@ namespace CrushIt.UI
             this.FormClosed += (s, e) =>
             {
                 idleTimer?.Stop();
-                Application.Exit();
+                if (Application.OpenForms.Count == 0)
+                {
+                    Application.Exit();
+                }
             };
             this.KeyPreview = true;
             this.KeyDown += (s, e) =>
@@ -173,6 +187,30 @@ namespace CrushIt.UI
                 ResetIdleTimer();
                 if (e.KeyCode == Keys.Escape)
                 {
+                    // Close any existing GameFrames before showing MainFrame
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        if (form is GameFrame existingGame && existingGame != this)
+                        {
+                            existingGame.Close();
+                            existingGame.Dispose();
+                        }
+                    }
+
+                    // Check if MainFrame already exists and refresh it instead of creating new one
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        if (form is MainFrame mainFrame)
+                        {
+                            mainFrame.RefreshLevelsData();
+                            mainFrame.Show();
+                            this.Hide();
+                            this.Dispose();
+                            return;
+                        }
+                    }
+
+                    // If no MainFrame exists, create a new one
                     MainFrame main = new MainFrame(currentUser, database);
                     main.Show();
                     this.Hide();
@@ -186,6 +224,16 @@ namespace CrushIt.UI
         {
             board = new CandyType[Rows, Cols];
             Array values = Enum.GetValues(typeof(CandyType));
+            
+            // Filter out special candies for initial board generation
+            List<CandyType> basicCandies = new List<CandyType>();
+            foreach (CandyType ct in values)
+            {
+                if (!ct.IsSpecial())
+                {
+                    basicCandies.Add(ct);
+                }
+            }
 
             for (int r = 0; r < Rows; r++)
             {
@@ -194,7 +242,7 @@ namespace CrushIt.UI
                     CandyType type;
                     do
                     {
-                        type = (CandyType)values.GetValue(rand.Next(values.Length))!;
+                        type = basicCandies[rand.Next(basicCandies.Count)];
                     }
                     while ((c >= 2 && board[r, c - 1] == type && board[r, c - 2] == type) ||
                            (r >= 2 && board[r - 1, c] == type && board[r - 2, c] == type));
@@ -214,24 +262,286 @@ namespace CrushIt.UI
 
             await inputController.AnimateSwapAsync(p1, p2);
 
+            CandyType type1 = board[p1.Y, p1.X];
+            CandyType type2 = board[p2.Y, p2.X];
+            
+            // Store original positions for revert
+            CandyType originalType1 = type1;
+            CandyType originalType2 = type2;
+            
             CandyType temp = board[p1.Y, p1.X];
             board[p1.Y, p1.X] = board[p2.Y, p2.X];
             board[p2.Y, p2.X] = temp;
 
-            List<Point> matches = FindMatches();
-            if (matches.Count > 0)
+            // Check for special candy swaps
+            bool specialSwap = false;
+            
+            // Color bomb + any candy = activate color bomb
+            if (type1.IsColorBomb() || type2.IsColorBomb())
             {
-                await ProcessMatchesCascade();
+                specialSwap = true;
+                Point bombPoint = type1.IsColorBomb() ? p2 : p1;
+                CandyType bombType = type1.IsColorBomb() ? type1 : type2;
+                CandyType targetType = type1.IsColorBomb() ? type2 : type1;
+                
+                HashSet<Point> explosionPoints = new HashSet<Point>();
+                
+                // Set the target color for the color bomb
+                if (targetType != (CandyType)(-1) && !targetType.IsSpecial())
+                {
+                    for (int r = 0; r < Rows; r++)
+                    {
+                        for (int c = 0; c < Cols; c++)
+                        {
+                            if (board[r, c] == targetType || board[r, c] == targetType.GetStripedVariant())
+                            {
+                                explosionPoints.Add(new Point(c, r));
+                            }
+                        }
+                    }
+                    
+                    // Also clear the bomb itself
+                    explosionPoints.Add(bombPoint);
+                    
+                    // Process the explosion
+                    await ProcessSpecialSwapExplosion(explosionPoints, bombPoint, targetType);
+                }
+                else
+                {
+                    // If targeting a special candy, revert swap
+                    await inputController.AnimateSwapAsync(p2, p1, isRevert: true);
+                    board[p1.Y, p1.X] = originalType1;
+                    board[p2.Y, p2.X] = originalType2;
+                }
             }
-            else
+            // Striped candy + striped candy = cross explosion
+            else if (type1.IsStriped() && type2.IsStriped())
             {
-                await inputController.AnimateSwapAsync(p2, p1, isRevert: true);
-                board[p2.Y, p2.X] = board[p1.Y, p1.X];
-                board[p1.Y, p1.X] = temp;
+                specialSwap = true;
+                HashSet<Point> explosionPoints = new HashSet<Point>();
+                
+                // First striped candy effect
+                if (type1.IsHorizontalStriped())
+                {
+                    for (int c = 0; c < Cols; c++)
+                        explosionPoints.Add(new Point(c, p1.Y));
+                }
+                else
+                {
+                    for (int r = 0; r < Rows; r++)
+                        explosionPoints.Add(new Point(p1.X, r));
+                }
+                
+                // Second striped candy effect
+                if (type2.IsHorizontalStriped())
+                {
+                    for (int c = 0; c < Cols; c++)
+                        explosionPoints.Add(new Point(c, p2.Y));
+                }
+                else
+                {
+                    for (int r = 0; r < Rows; r++)
+                        explosionPoints.Add(new Point(p2.X, r));
+                }
+                
+                await ProcessSpecialSwapExplosion(explosionPoints, p1, type1);
+            }
+            // Striped candy + regular candy = activate striped candy
+            else if (type1.IsStriped() || type2.IsStriped())
+            {
+                specialSwap = true;
+                Point stripedPoint = type1.IsStriped() ? p2 : p1;
+                CandyType stripedType = type1.IsStriped() ? type1 : type2;
+                
+                HashSet<Point> explosionPoints = new HashSet<Point>();
+                
+                if (stripedType.IsHorizontalStriped())
+                {
+                    for (int c = 0; c < Cols; c++)
+                        explosionPoints.Add(new Point(c, stripedPoint.Y));
+                }
+                else
+                {
+                    for (int r = 0; r < Rows; r++)
+                        explosionPoints.Add(new Point(stripedPoint.X, r));
+                }
+                
+                await ProcessSpecialSwapExplosion(explosionPoints, stripedPoint, stripedType);
+            }
+
+            if (!specialSwap)
+            {
+                List<Point> matches = FindMatches();
+                if (matches.Count > 0)
+                {
+                    await ProcessMatchesCascade();
+                }
+                else
+                {
+                    // Revert the swap if no matches found
+                    await inputController.AnimateSwapAsync(p2, p1, isRevert: true);
+                    board[p1.Y, p1.X] = originalType1;
+                    board[p2.Y, p2.X] = originalType2;
+                }
             }
 
             isProcessingBoard = false;
             this.Invalidate();
+        }
+
+        private async Task ProcessSpecialSwapExplosion(HashSet<Point> explosionPoints, Point origin, CandyType type)
+        {
+            sessionMatches += explosionPoints.Count;
+            currentCombo++;
+            hasMadeFirstMatch = true;
+
+            foreach (Point pt in explosionPoints)
+            {
+                CandyType candyType = board[pt.Y, pt.X];
+                
+                // Check if this is a special candy being activated (chain reaction)
+                if (candyType.IsSpecial() && pt != origin)
+                {
+                    await ActivateSpecialCandy(pt, candyType, explosionPoints);
+                }
+                
+                GameData.AddPoints(candyType);
+
+                int goldEarned = CandyGoldValues.GetGoldValue(candyType, levelNumber);
+                sessionGold += goldEarned;
+
+                int x = GridOffsetX + pt.X * TileSize + TileSize / 2;
+                int y = GridOffsetY + pt.Y * TileSize + TileSize / 2;
+                SpawnParticles(x, y, GetCandyColor(candyType));
+
+                if (goldEarned > 0)
+                {
+                    SpawnGoldParticles(x, y, goldEarned);
+                }
+            }
+
+            // Clear all exploded points
+            foreach (Point pt in explosionPoints)
+            {
+                board[pt.Y, pt.X] = (CandyType)(-1);
+            }
+
+            this.Invalidate();
+            await Task.Delay(200);
+
+            // Check for level completion
+            if (GameData.TotalScore >= TargetPointGoal)
+            {
+                levelCompleted = true;
+                this.Invalidate();
+
+                try
+                {
+                    var filter = Builders<UserAccount>.Filter.Eq(u => u.Email, currentUser.Email);
+                    var update = Builders<UserAccount>.Update
+                        .AddToSet(u => u.CompletedLevels, levelNumber)
+                        .Inc(u => u.Gold, sessionGold)
+                        .Inc(u => u.TotalMatches, sessionMatches)
+                        .Set(u => u.HighestScore, Math.Max(currentUser.HighestScore, GameData.TotalScore));
+                    await usersCollection.UpdateOneAsync(filter, update);
+
+                    if (currentUser.CompletedLevels == null)
+                        currentUser.CompletedLevels = new List<int>();
+                    if (!currentUser.CompletedLevels.Contains(levelNumber))
+                        currentUser.CompletedLevels.Add(levelNumber);
+                    currentUser.Gold += sessionGold;
+                    currentUser.TotalMatches += sessionMatches;
+                    currentUser.HighestScore = Math.Max(currentUser.HighestScore, GameData.TotalScore);
+
+                    await CheckAndUnlockAchievements();
+
+                    _ = ProgressSyncService.SyncAfterLevelAsync(currentUser, database, apiClient);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to update level completion: {ex.Message}");
+                }
+
+                await Task.Delay(3000);
+
+                // Close any existing GameFrames before showing MainFrame
+                foreach (Form form in Application.OpenForms)
+                {
+                    if (form is GameFrame existingGame && existingGame != this)
+                    {
+                        existingGame.Close();
+                        existingGame.Dispose();
+                    }
+                }
+
+                // Check if MainFrame already exists and refresh it instead of creating new one
+                foreach (Form form in Application.OpenForms)
+                {
+                    if (form is MainFrame mainFrame)
+                    {
+                        mainFrame.RefreshLevelsData();
+                        mainFrame.Show();
+                        this.Hide();
+                        this.Dispose();
+                        return;
+                    }
+                }
+
+                // If no MainFrame exists, create a new one
+                MainFrame main = new MainFrame(currentUser, database);
+                main.Show();
+                this.Hide();
+                this.Dispose();
+                return;
+            }
+
+            // Refill board and process cascades
+            await RefillBoardAndProcessCascades();
+        }
+
+        private async Task RefillBoardAndProcessCascades()
+        {
+            // Refill board
+            Array values = Enum.GetValues(typeof(CandyType));
+            
+            List<CandyType> basicCandies = new List<CandyType>();
+            foreach (CandyType ct in values)
+            {
+                if (!ct.IsSpecial())
+                {
+                    basicCandies.Add(ct);
+                }
+            }
+            
+            for (int c = 0; c < Cols; c++)
+            {
+                for (int r = Rows - 1; r >= 0; r--)
+                {
+                    if ((int)board[r, c] == -1)
+                    {
+                        for (int rAbove = r - 1; rAbove >= 0; rAbove--)
+                        {
+                            if ((int)board[rAbove, c] != -1)
+                            {
+                                board[r, c] = board[rAbove, c];
+                                board[rAbove, c] = (CandyType)(-1);
+                                break;
+                            }
+                        }
+
+                        if ((int)board[r, c] == -1)
+                        {
+                            board[r, c] = basicCandies[rand.Next(basicCandies.Count)];
+                        }
+                    }
+                }
+            }
+
+            this.Invalidate();
+            await Task.Delay(250);
+
+            // Process any cascades
+            await ProcessMatchesCascade();
         }
 
         private List<Point> FindMatches()
@@ -282,25 +592,149 @@ namespace CrushIt.UI
                 }
             }
 
+            // Check for square matches (2x2, 3x3, 4x4, etc.)
             for (int r = 0; r < Rows - 1; r++)
             {
                 for (int c = 0; c < Cols - 1; c++)
                 {
                     CandyType type = board[r, c];
-                    if (type != (CandyType)(-1) &&
-                        type == board[r, c + 1] &&
-                        type == board[r + 1, c] &&
-                        type == board[r + 1, c + 1])
+                    if (type != (CandyType)(-1))
                     {
-                        matchedPoints.Add(new Point(c, r));
-                        matchedPoints.Add(new Point(c + 1, r));
-                        matchedPoints.Add(new Point(c, r + 1));
-                        matchedPoints.Add(new Point(c + 1, r + 1));
+                        // Find the maximum square size starting from this position
+                        int maxSquareSize = Math.Min(Rows - r, Cols - c);
+                        
+                        for (int size = 2; size <= maxSquareSize; size++)
+                        {
+                            bool isSquareMatch = true;
+                            
+                            // Check if all tiles in the square match
+                            for (int sr = 0; sr < size && isSquareMatch; sr++)
+                            {
+                                for (int sc = 0; sc < size && isSquareMatch; sc++)
+                                {
+                                    if (board[r + sr, c + sc] != type)
+                                    {
+                                        isSquareMatch = false;
+                                    }
+                                }
+                            }
+                            
+                            if (isSquareMatch)
+                            {
+                                for (int sr = 0; sr < size; sr++)
+                                {
+                                    for (int sc = 0; sc < size; sc++)
+                                    {
+                                        matchedPoints.Add(new Point(c + sc, r + sr));
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
             return new List<Point>(matchedPoints);
+        }
+
+        private List<MatchInfo> FindMatchesDetailed()
+        {
+            List<MatchInfo> matches = new List<MatchInfo>();
+            HashSet<Point> processedPoints = new HashSet<Point>();
+
+            // Check horizontal matches
+            for (int r = 0; r < Rows; r++)
+            {
+                int matchLength = 1;
+                int matchStart = 0;
+                
+                for (int c = 0; c < Cols; c++)
+                {
+                    bool isEnd = (c == Cols - 1);
+                    if (!isEnd && board[r, c] == board[r, c + 1])
+                    {
+                        matchLength++;
+                    }
+                    else
+                    {
+                        if (matchLength >= 3)
+                        {
+                            MatchInfo match = new MatchInfo
+                            {
+                                MatchLength = matchLength,
+                                IsHorizontal = true,
+                                CandyType = board[r, c],
+                                CreationPoint = new Point(matchStart + matchLength / 2, r)
+                            };
+                            
+                            for (int i = 0; i < matchLength; i++)
+                            {
+                                Point pt = new Point(matchStart + i, r);
+                                match.MatchedPoints.Add(pt);
+                                processedPoints.Add(pt);
+                            }
+                            matches.Add(match);
+                        }
+                        matchLength = 1;
+                        matchStart = c + 1;
+                    }
+                }
+            }
+
+            // Check vertical matches
+            for (int c = 0; c < Cols; c++)
+            {
+                int matchLength = 1;
+                int matchStart = 0;
+                
+                for (int r = 0; r < Rows; r++)
+                {
+                    bool isEnd = (r == Rows - 1);
+                    if (!isEnd && board[r, c] == board[r + 1, c])
+                    {
+                        matchLength++;
+                    }
+                    else
+                    {
+                        if (matchLength >= 3)
+                        {
+                            // Check if this match overlaps with already processed horizontal matches
+                            bool isOverlap = false;
+                            for (int i = 0; i < matchLength; i++)
+                            {
+                                Point pt = new Point(c, matchStart + i);
+                                if (processedPoints.Contains(pt))
+                                {
+                                    isOverlap = true;
+                                    break;
+                                }
+                            }
+                            
+                            if (!isOverlap)
+                            {
+                                MatchInfo match = new MatchInfo
+                                {
+                                    MatchLength = matchLength,
+                                    IsHorizontal = false,
+                                    CandyType = board[matchStart, c],
+                                    CreationPoint = new Point(c, matchStart + matchLength / 2)
+                                };
+                                
+                                for (int i = 0; i < matchLength; i++)
+                                {
+                                    Point pt = new Point(c, matchStart + i);
+                                    match.MatchedPoints.Add(pt);
+                                }
+                                matches.Add(match);
+                            }
+                        }
+                        matchLength = 1;
+                        matchStart = r + 1;
+                    }
+                }
+            }
+
+            return matches;
         }
 
         private (Point?, Point?) FindBestMove()
@@ -381,16 +815,43 @@ namespace CrushIt.UI
                 for (int c = 0; c < Cols - 1; c++)
                 {
                     CandyType type = board[r, c];
-                    if (type != (CandyType)(-1) &&
-                        type == board[r, c + 1] &&
-                        type == board[r + 1, c] &&
-                        type == board[r + 1, c + 1])
+                    if (type != (CandyType)(-1))
                     {
-                        squareMatches.Add(new Point(c, r));
-                        squareMatches.Add(new Point(c + 1, r));
-                        squareMatches.Add(new Point(c, r + 1));
-                        squareMatches.Add(new Point(c + 1, r + 1));
-                        return squareMatches;
+                        // Find the maximum square size starting from this position
+                        int maxSquareSize = Math.Min(Rows - r, Cols - c);
+                        
+                        for (int size = 2; size <= maxSquareSize; size++)
+                        {
+                            bool isSquareMatch = true;
+                            
+                            // Check if all tiles in the square match
+                            for (int sr = 0; sr < size && isSquareMatch; sr++)
+                            {
+                                for (int sc = 0; sc < size && isSquareMatch; sc++)
+                                {
+                                    if (board[r + sr, c + sc] != type)
+                                    {
+                                        isSquareMatch = false;
+                                    }
+                                }
+                            }
+                            
+                            if (isSquareMatch)
+                            {
+                                // Add all points in the square
+                                for (int sr = 0; sr < size; sr++)
+                                {
+                                    for (int sc = 0; sc < size; sc++)
+                                    {
+                                        Point pt = new Point(c + sc, r + sr);
+                                        if (!squareMatches.Contains(pt))
+                                        {
+                                            squareMatches.Add(pt);
+                                        }
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -398,41 +859,270 @@ namespace CrushIt.UI
             return squareMatches;
         }
 
+        private async Task ActivateSpecialCandy(Point pt, CandyType type, HashSet<Point> explosionPoints)
+        {
+            var config = PowerupsConfig.Instance;
+            
+            if (type.IsStriped())
+            {
+                // Striped candy clears row or column
+                bool isHorizontal = type.IsHorizontalStriped();
+                
+                if (isHorizontal)
+                {
+                    // Clear entire row
+                    for (int c = 0; c < Cols; c++)
+                    {
+                        if (c != pt.X) // Don't double-count the candy itself
+                        {
+                            explosionPoints.Add(new Point(c, pt.Y));
+                        }
+                    }
+                    
+                    // Horizontal explosion effect
+                    int explosionX = GridOffsetX + pt.X * TileSize + TileSize / 2;
+                    int explosionY = GridOffsetY + pt.Y * TileSize + TileSize / 2;
+                    SpawnHorizontalLineExplosion(explosionX, explosionY, GetCandyColor(type.GetBaseType()));
+                }
+                else
+                {
+                    // Clear entire column
+                    for (int r = 0; r < Rows; r++)
+                    {
+                        if (r != pt.Y) // Don't double-count the candy itself
+                        {
+                            explosionPoints.Add(new Point(pt.X, r));
+                        }
+                    }
+                    
+                    // Vertical explosion effect
+                    int explosionX = GridOffsetX + pt.X * TileSize + TileSize / 2;
+                    int explosionY = GridOffsetY + pt.Y * TileSize + TileSize / 2;
+                    SpawnVerticalLineExplosion(explosionX, explosionY, GetCandyColor(type.GetBaseType()));
+                }
+                
+                SoundHelper.PlayCandyMatchSound();
+            }
+            else if (type.IsColorBomb())
+            {
+                // Color bomb clears all candies of a random color
+                // First, determine which color to clear (use the color of the candy it was swapped with)
+                CandyType colorToClear = DetermineColorBombTarget(pt);
+                
+                if (colorToClear != CandyType.ColorBomb)
+                {
+                    for (int r = 0; r < Rows; r++)
+                    {
+                        for (int c = 0; c < Cols; c++)
+                        {
+                            if (board[r, c] == colorToClear || board[r, c] == colorToClear.GetStripedVariant())
+                            {
+                                explosionPoints.Add(new Point(c, r));
+                            }
+                        }
+                    }
+                    
+                    // Color explosion effect
+                    int explosionX = GridOffsetX + pt.X * TileSize + TileSize / 2;
+                    int explosionY = GridOffsetY + pt.Y * TileSize + TileSize / 2;
+                    SpawnColorExplosion(explosionX, explosionY, GetCandyColor(colorToClear));
+                    
+                    SoundHelper.PlayCandyMatchSound();
+                }
+            }
+        }
+
+        private CandyType DetermineColorBombTarget(Point bombPoint)
+        {
+            // Find adjacent candies to determine target color
+            CandyType[] adjacentColors = new CandyType[4];
+            int foundColors = 0;
+            
+            // Check adjacent cells
+            int[] dx = { 0, 0, 1, -1 };
+            int[] dy = { 1, -1, 0, 0 };
+            
+            for (int i = 0; i < 4; i++)
+            {
+                int nx = bombPoint.X + dx[i];
+                int ny = bombPoint.Y + dy[i];
+                
+                if (nx >= 0 && nx < Cols && ny >= 0 && ny < Rows)
+                {
+                    CandyType neighborType = board[ny, nx];
+                    if (neighborType != (CandyType)(-1) && !neighborType.IsSpecial())
+                    {
+                        adjacentColors[foundColors++] = neighborType.GetBaseType();
+                    }
+                }
+            }
+            
+            // Return first found color, or random if none found
+            if (foundColors > 0)
+            {
+                return adjacentColors[rand.Next(foundColors)];
+            }
+            
+            // Fallback to random color
+            Array values = Enum.GetValues(typeof(CandyType));
+            foreach (CandyType ct in values)
+            {
+                if (!ct.IsSpecial())
+                {
+                    return ct;
+                }
+            }
+            
+            return CandyType.RedStrawberry; // Ultimate fallback
+        }
+
+        private void SpawnHorizontalLineExplosion(int x, int y, Color color)
+        {
+            for (int i = 0; i < PowerupsConfig.Instance.PowerupSettings.ParticleCount; i++)
+            {
+                float angle = (rand.Next(2) == 0) ? 0 : (float)Math.PI; // Left or right
+                float speed = 5 + rand.Next(5);
+                
+                burstParticles.Add(new CandyParticle
+                {
+                    X = x,
+                    Y = y,
+                    SpeedX = (float)Math.Cos(angle) * speed,
+                    SpeedY = (float)(rand.NextDouble() - 0.5) * 2,
+                    Size = 4 + rand.Next(4),
+                    Alpha = 1.0f,
+                    ParticleColor = color
+                });
+            }
+        }
+
+        private void SpawnVerticalLineExplosion(int x, int y, Color color)
+        {
+            for (int i = 0; i < PowerupsConfig.Instance.PowerupSettings.ParticleCount; i++)
+            {
+                float angle = (rand.Next(2) == 0) ? (float)Math.PI / 2 : (float)-Math.PI / 2; // Up or down
+                float speed = 5 + rand.Next(5);
+                
+                burstParticles.Add(new CandyParticle
+                {
+                    X = x,
+                    Y = y,
+                    SpeedX = (float)(rand.NextDouble() - 0.5) * 2,
+                    SpeedY = (float)Math.Sin(angle) * speed,
+                    Size = 4 + rand.Next(4),
+                    Alpha = 1.0f,
+                    ParticleColor = color
+                });
+            }
+        }
+
+        private void SpawnColorExplosion(int x, int y, Color color)
+        {
+            for (int i = 0; i < PowerupsConfig.Instance.PowerupSettings.ParticleCount * 2; i++)
+            {
+                float angle = (float)(rand.NextDouble() * Math.PI * 2);
+                float speed = 3 + rand.Next(5);
+                
+                burstParticles.Add(new CandyParticle
+                {
+                    X = x,
+                    Y = y,
+                    SpeedX = (float)Math.Cos(angle) * speed,
+                    SpeedY = (float)Math.Sin(angle) * speed,
+                    Size = 3 + rand.Next(5),
+                    Alpha = 1.0f,
+                    ParticleColor = color
+                });
+            }
+        }
+
         private async Task ProcessMatchesCascade()
         {
             while (true)
             {
-                List<Point> matches = FindMatches();
-                if (matches.Count == 0)
+                // Find all matches including those created by previous cascades
+                List<MatchInfo> matchInfos = FindMatchesDetailed();
+                List<Point> allMatchedPoints = new List<Point>();
+                
+                // Collect all matched points from detailed matches
+                foreach (MatchInfo match in matchInfos)
+                {
+                    allMatchedPoints.AddRange(match.MatchedPoints);
+                }
+                
+                // Also find square matches
+                List<Point> squareMatches = FindSquareMatches();
+                allMatchedPoints.AddRange(squareMatches);
+                
+                if (allMatchedPoints.Count == 0)
                 {
                     currentCombo = 0;
                     break;
                 }
 
-                List<Point> squareMatches = FindSquareMatches();
                 HashSet<Point> explosionPoints = new HashSet<Point>();
+                List<Point> specialCandyCreations = new List<Point>();
 
-
-                sessionMatches += matches.Count;
+                sessionMatches += allMatchedPoints.Count;
                 currentCombo++;
                 hasMadeFirstMatch = true;
 
-                foreach (Point pt in matches)
+                // Process regular matches and create special candies
+                foreach (MatchInfo match in matchInfos)
                 {
-                    CandyType type = board[pt.Y, pt.X];
-                    GameData.AddPoints(type);
+                    // Check if we should create a special candy
+                    CandyType specialCandyType = CandyType.RedStrawberry; // default
+                    bool shouldCreateSpecial = false;
+                    Point creationPoint = match.CreationPoint;
 
-                    int goldEarned = CandyGoldValues.GetGoldValue(type, levelNumber);
-                    sessionGold += goldEarned;
-
-                    int x = GridOffsetX + pt.X * TileSize + TileSize / 2;
-                    int y = GridOffsetY + pt.Y * TileSize + TileSize / 2;
-                    SpawnParticles(x, y, GetCandyColor(type));
-
-
-                    if (goldEarned > 0)
+                    if (match.MatchLength == 4 && levelNumber >= 5)
                     {
-                        SpawnGoldParticles(x, y, goldEarned);
+                        // Create striped candy
+                        specialCandyType = match.CandyType.GetStripedVariant();
+                        shouldCreateSpecial = true;
+                    }
+                    else if (match.MatchLength >= 5 && levelNumber >= 7)
+                    {
+                        // Create color bomb
+                        specialCandyType = CandyType.ColorBomb;
+                        shouldCreateSpecial = true;
+                    }
+
+                    // Process matched points
+                    foreach (Point pt in match.MatchedPoints)
+                    {
+                        CandyType type = board[pt.Y, pt.X];
+                        
+                        // Check if this is a special candy being activated
+                        if (type.IsSpecial())
+                        {
+                            await ActivateSpecialCandy(pt, type, explosionPoints);
+                        }
+                        
+                        GameData.AddPoints(type);
+
+                        int goldEarned = CandyGoldValues.GetGoldValue(type, levelNumber);
+                        sessionGold += goldEarned;
+
+                        int x = GridOffsetX + pt.X * TileSize + TileSize / 2;
+                        int y = GridOffsetY + pt.Y * TileSize + TileSize / 2;
+                        SpawnParticles(x, y, GetCandyColor(type));
+
+                        if (goldEarned > 0)
+                        {
+                            SpawnGoldParticles(x, y, goldEarned);
+                        }
+                    }
+
+                    // Create special candy if conditions met
+                    if (shouldCreateSpecial && creationPoint.X >= 0 && creationPoint.X < Cols && 
+                        creationPoint.Y >= 0 && creationPoint.Y < Rows)
+                    {
+                        board[creationPoint.Y, creationPoint.X] = specialCandyType;
+                        specialCandyCreations.Add(creationPoint);
+                        
+                        // Don't clear the creation point
+                        match.MatchedPoints.Remove(creationPoint);
                     }
                 }
 
@@ -471,7 +1161,17 @@ namespace CrushIt.UI
                     }
                 }
 
-                foreach (Point pt in matches)
+                // Clear all matched points including square matches
+                foreach (MatchInfo match in matchInfos)
+                {
+                    foreach (Point pt in match.MatchedPoints)
+                    {
+                        board[pt.Y, pt.X] = (CandyType)(-1);
+                    }
+                }
+
+                // Clear square matches
+                foreach (Point pt in squareMatches)
                 {
                     board[pt.Y, pt.X] = (CandyType)(-1);
                 }
@@ -520,6 +1220,30 @@ namespace CrushIt.UI
 
                     await Task.Delay(3000);
 
+                    // Close any existing GameFrames before showing MainFrame
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        if (form is GameFrame existingGame && existingGame != this)
+                        {
+                            existingGame.Close();
+                            existingGame.Dispose();
+                        }
+                    }
+
+                    // Check if MainFrame already exists and refresh it instead of creating new one
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        if (form is MainFrame mainFrame)
+                        {
+                            mainFrame.RefreshLevelsData();
+                            mainFrame.Show();
+                            this.Hide();
+                            this.Dispose();
+                            return;
+                        }
+                    }
+
+                    // If no MainFrame exists, create a new one
                     MainFrame main = new MainFrame(currentUser, database);
                     main.Show();
                     this.Hide();
@@ -527,33 +1251,8 @@ namespace CrushIt.UI
                     return;
                 }
 
-                Array values = Enum.GetValues(typeof(CandyType));
-                for (int c = 0; c < Cols; c++)
-                {
-                    for (int r = Rows - 1; r >= 0; r--)
-                    {
-                        if ((int)board[r, c] == -1)
-                        {
-                            for (int rAbove = r - 1; rAbove >= 0; rAbove--)
-                            {
-                                if ((int)board[rAbove, c] != -1)
-                                {
-                                    board[r, c] = board[rAbove, c];
-                                    board[rAbove, c] = (CandyType)(-1);
-                                    break;
-                                }
-                            }
-
-                            if ((int)board[r, c] == -1)
-                            {
-                                board[r, c] = (CandyType)values.GetValue(rand.Next(values.Length))!;
-                            }
-                        }
-                    }
-                }
-
-                this.Invalidate();
-                await Task.Delay(250);
+                // Refill board and continue cascading
+                await RefillBoardAndProcessCascades();
             }
         }
 
@@ -656,6 +1355,24 @@ namespace CrushIt.UI
                 {
                     double angle = i * Math.PI / 5 - Math.PI / 2;
                     double radius = (i % 2 == 0) ? scaledSize : scaledSize / 2;
+                    starPoints[i] = new Point(
+                        (int)(x + Math.Cos(angle) * radius),
+                        (int)(y + Math.Sin(angle) * radius)
+                    );
+                }
+                g.FillPolygon(starBrush, starPoints);
+            }
+        }
+
+        private void DrawRotatedStar(Graphics g, int x, int y, int size, Color color, float rotation)
+        {
+            using (SolidBrush starBrush = new SolidBrush(color))
+            {
+                Point[] starPoints = new Point[10];
+                for (int i = 0; i < 10; i++)
+                {
+                    double angle = i * Math.PI / 5 - Math.PI / 2 + rotation;
+                    double radius = (i % 2 == 0) ? size : size / 2;
                     starPoints[i] = new Point(
                         (int)(x + Math.Cos(angle) * radius),
                         (int)(y + Math.Sin(angle) * radius)
@@ -964,26 +1681,9 @@ namespace CrushIt.UI
                 CrushItStyleHelper.DrawOutlinedText(g, $"LEVEL {levelNumber}", titleFont, banner, Color.White, Color.FromArgb(100, 60, 20, 0), 3, sf);
             }
 
-            // Draw styled score and gold panels
-            Rectangle scorePanel = new Rectangle(50, 70, 400, 40);
-            CrushItStyleHelper.DrawPanel(g, scorePanel, Color.FromArgb(255, 100, 180, 220), Color.FromArgb(255, 70, 150, 190), Color.FromArgb(255, 50, 120, 160));
-
-            using (Font scoreFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
-            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            {
-                string scoreText = $"SCORE: {Math.Min(GameData.TotalScore, TargetPointGoal)} / {TargetPointGoal}";
-                CrushItStyleHelper.DrawOutlinedText(g, scoreText, scoreFont, scorePanel, Color.White, Color.FromArgb(100, 0, 50, 100), 2, sf);
-            }
-
-            Rectangle goldPanel = new Rectangle(450, 70, 400, 40);
-            CrushItStyleHelper.DrawPanel(g, goldPanel, Color.FromArgb(255, 220, 180, 80), Color.FromArgb(255, 190, 150, 50), Color.FromArgb(255, 160, 120, 30));
-
-            using (Font goldFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
-            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-            {
-                string goldText = $"GOLD: {sessionGold}";
-                CrushItStyleHelper.DrawOutlinedText(g, goldText, goldFont, goldPanel, Color.White, Color.FromArgb(100, 80, 40, 0), 2, sf);
-            }
+            // Draw professional score and gold panels
+            DrawProfessionalScorePanel(g, 50, 70, 380, 45, GameData.TotalScore, TargetPointGoal);
+            DrawProfessionalGoldPanel(g, 440, 70, 380, 45, sessionGold);
 
 
             DrawAchievementNotifications(g);
@@ -1162,37 +1862,105 @@ namespace CrushIt.UI
             Color lightColor = Color.Pink;
             Color glowColor = Color.White;
 
-            switch (candy)
+            // Get base type for special candies
+            CandyType baseType = candy.GetBaseType();
+            
+            // For powerup candies, use a completely different color scheme - much more vibrant
+            bool isPowerup = candy.IsStriped() || candy.IsColorBomb();
+            
+            switch (baseType)
             {
                 case CandyType.RedStrawberry:
-                    mainColor = Color.FromArgb(235, 45, 75);
-                    darkColor = Color.FromArgb(135, 10, 35);
-                    lightColor = Color.FromArgb(255, 140, 160);
-                    glowColor = Color.FromArgb(255, 100, 50, 80);
+                    if (isPowerup)
+                    {
+                        // Powerup version - very bright and bold red
+                        mainColor = Color.FromArgb(255, 200, 50, 80);
+                        darkColor = Color.FromArgb(255, 120, 20, 40);
+                        lightColor = Color.FromArgb(255, 255, 150, 180);
+                        glowColor = Color.FromArgb(255, 255, 100, 150);
+                    }
+                    else
+                    {
+                        mainColor = Color.FromArgb(235, 45, 75);
+                        darkColor = Color.FromArgb(135, 10, 35);
+                        lightColor = Color.FromArgb(255, 140, 160);
+                        glowColor = Color.FromArgb(255, 100, 50, 80);
+                    }
                     break;
                 case CandyType.BlueGummy:
-                    mainColor = Color.FromArgb(35, 165, 245);
-                    darkColor = Color.FromArgb(10, 75, 155);
-                    lightColor = Color.FromArgb(150, 225, 255);
-                    glowColor = Color.FromArgb(255, 50, 100, 180);
+                    if (isPowerup)
+                    {
+                        // Powerup version - very bright and bold blue
+                        mainColor = Color.FromArgb(255, 50, 150, 255);
+                        darkColor = Color.FromArgb(255, 20, 80, 180);
+                        lightColor = Color.FromArgb(255, 150, 220, 255);
+                        glowColor = Color.FromArgb(255, 100, 180, 255);
+                    }
+                    else
+                    {
+                        mainColor = Color.FromArgb(35, 165, 245);
+                        darkColor = Color.FromArgb(10, 75, 155);
+                        lightColor = Color.FromArgb(150, 225, 255);
+                        glowColor = Color.FromArgb(255, 50, 100, 180);
+                    }
                     break;
                 case CandyType.GreenApple:
-                    mainColor = Color.FromArgb(45, 205, 85);
-                    darkColor = Color.FromArgb(15, 105, 35);
-                    lightColor = Color.FromArgb(150, 255, 175);
-                    glowColor = Color.FromArgb(255, 50, 150, 80);
+                    if (isPowerup)
+                    {
+                        // Powerup version - very bright and bold green
+                        mainColor = Color.FromArgb(255, 50, 200, 80);
+                        darkColor = Color.FromArgb(255, 20, 120, 40);
+                        lightColor = Color.FromArgb(255, 150, 255, 180);
+                        glowColor = Color.FromArgb(255, 100, 255, 150);
+                    }
+                    else
+                    {
+                        mainColor = Color.FromArgb(45, 205, 85);
+                        darkColor = Color.FromArgb(15, 105, 35);
+                        lightColor = Color.FromArgb(150, 255, 175);
+                        glowColor = Color.FromArgb(255, 50, 150, 80);
+                    }
                     break;
                 case CandyType.YellowLemon:
-                    mainColor = Color.FromArgb(255, 215, 35);
-                    darkColor = Color.FromArgb(170, 125, 0);
-                    lightColor = Color.FromArgb(255, 245, 160);
-                    glowColor = Color.FromArgb(255, 200, 150, 50);
+                    if (isPowerup)
+                    {
+                        // Powerup version - very bright and bold yellow
+                        mainColor = Color.FromArgb(255, 255, 180, 50);
+                        darkColor = Color.FromArgb(255, 200, 120, 20);
+                        lightColor = Color.FromArgb(255, 255, 230, 150);
+                        glowColor = Color.FromArgb(255, 255, 200, 100);
+                    }
+                    else
+                    {
+                        mainColor = Color.FromArgb(255, 215, 35);
+                        darkColor = Color.FromArgb(170, 125, 0);
+                        lightColor = Color.FromArgb(255, 245, 160);
+                        glowColor = Color.FromArgb(255, 200, 150, 50);
+                    }
                     break;
                 case CandyType.PurplePlum:
-                    mainColor = Color.FromArgb(175, 75, 215);
-                    darkColor = Color.FromArgb(95, 20, 125);
-                    lightColor = Color.FromArgb(225, 155, 255);
-                    glowColor = Color.FromArgb(255, 100, 50, 180);
+                    if (isPowerup)
+                    {
+                        // Powerup version - very bright and bold purple
+                        mainColor = Color.FromArgb(255, 180, 80, 255);
+                        darkColor = Color.FromArgb(255, 120, 40, 180);
+                        lightColor = Color.FromArgb(255, 230, 160, 255);
+                        glowColor = Color.FromArgb(255, 200, 120, 255);
+                    }
+                    else
+                    {
+                        mainColor = Color.FromArgb(175, 75, 215);
+                        darkColor = Color.FromArgb(95, 20, 125);
+                        lightColor = Color.FromArgb(225, 155, 255);
+                        glowColor = Color.FromArgb(255, 100, 50, 180);
+                    }
+                    break;
+                case CandyType.ColorBomb:
+                    // Color bomb - bright white core with rainbow glow
+                    mainColor = Color.FromArgb(255, 255, 255);
+                    darkColor = Color.FromArgb(200, 200, 200);
+                    lightColor = Color.FromArgb(255, 255, 255);
+                    glowColor = Color.FromArgb(255, 220, 180, 255);
                     break;
             }
 
@@ -1255,10 +2023,7 @@ namespace CrushIt.UI
             int cx = x + (size / 2);
             int cy = animatedY + (size / 2);
 
-            // Draw sparkle effects
-            DrawCandySparkles(g, cx, cy, candy, pulsePhase);
-
-            switch (candy)
+            switch (candy.GetBaseType())
             {
                 case CandyType.RedStrawberry:
                     DrawPixelStrawberry(g, cx, cy);
@@ -1275,37 +2040,31 @@ namespace CrushIt.UI
                 case CandyType.PurplePlum:
                     DrawPixelPurplePlum(g, cx, cy);
                     break;
+                case CandyType.ColorBomb:
+                    // Color bomb has its own effect, no additional pixel drawing needed
+                    break;
             }
             
             // Top shine overlay
             DrawCandyShine(g, inner, pulsePhase);
-        }
-        
-        private void DrawCandySparkles(Graphics g, int cx, int cy, CandyType candy, int phase)
-        {
-            // Animated sparkles that move around the candy
-            int sparkleOffset = phase % 60;
-            float sparkleAlpha = 1.0f - (sparkleOffset / 60.0f);
-            
-            if (sparkleAlpha > 0)
+
+            // Draw special candy effects
+            if (candy.IsStriped())
             {
-                int sparkleX = cx + (int)(10 * Math.Cos(phase * 0.1));
-                int sparkleY = cy + (int)(10 * Math.Sin(phase * 0.1));
+                // Draw rainbow tile background first (subtle)
+                DrawRainbowTileBackground(g, inner, pulsePhase);
                 
-                using (SolidBrush sparkle = new SolidBrush(Color.FromArgb((int)(255 * sparkleAlpha), 255, 255, 255)))
+                // Add outer glow - more subtle
+                int outerGlowPulse = (int)(15 * Math.Sin(pulsePhase * Math.PI / 12));
+                using (SolidBrush outerGlow = new SolidBrush(Color.FromArgb(30 + outerGlowPulse, 255, 255, 255)))
                 {
-                    // Draw small sparkle star
-                    Point[] starPoints = new Point[4];
-                    for (int i = 0; i < 4; i++)
-                    {
-                        double angle = i * Math.PI / 2;
-                        starPoints[i] = new Point(
-                            (int)(sparkleX + Math.Cos(angle) * 3),
-                            (int)(sparkleY + Math.Sin(angle) * 3)
-                        );
-                    }
-                    g.FillPolygon(sparkle, starPoints);
+                    Rectangle glowRect = new Rectangle(inner.X - 2, inner.Y - 2, inner.Width + 4, inner.Height + 4);
+                    g.FillRoundedRectangle(outerGlow, glowRect, 8);
                 }
+            }
+            else if (candy.IsColorBomb())
+            {
+                DrawColorBombEffect(g, inner, pulsePhase);
             }
         }
         
@@ -1318,6 +2077,77 @@ namespace CrushIt.UI
             using (SolidBrush shine = new SolidBrush(Color.FromArgb(100, 255, 255, 255)))
             {
                 g.FillEllipse(shine, shineX, shineY, 8, 6);
+            }
+        }
+
+        private void DrawRainbowTileBackground(Graphics g, Rectangle rect, int phase)
+        {
+            // Subtle animated rainbow gradient for tile background - much more transparent
+            Color[] rainbowColors = new Color[]
+            {
+                Color.FromArgb(60, 255, 50, 50),
+                Color.FromArgb(60, 255, 150, 0),
+                Color.FromArgb(60, 255, 255, 50),
+                Color.FromArgb(60, 50, 255, 50),
+                Color.FromArgb(60, 50, 150, 255),
+                Color.FromArgb(60, 150, 50, 255)
+            };
+            
+            // Create animated rainbow gradient
+            int colorOffset = (phase / 3) % rainbowColors.Length;
+            
+            using (LinearGradientBrush rainbowBrush = new LinearGradientBrush(
+                rect,
+                rainbowColors[colorOffset],
+                rainbowColors[(colorOffset + 3) % rainbowColors.Length],
+                LinearGradientMode.Horizontal))
+            {
+                g.FillRoundedRectangle(rainbowBrush, rect, 6);
+            }
+            
+            // Add subtle shimmer effect - very transparent
+            int shimmerOffset = (phase / 5) % (rect.Width + 20);
+            int shimmerX = rect.X - 10 + shimmerOffset;
+            
+            if (shimmerX > rect.X - 20 && shimmerX < rect.Right + 20)
+            {
+                using (LinearGradientBrush shimmerBrush = new LinearGradientBrush(
+                    new Rectangle(shimmerX, rect.Y, 15, rect.Height),
+                    Color.FromArgb(0, 255, 255, 255),
+                    Color.FromArgb(30, 255, 255, 255),
+                    LinearGradientMode.Horizontal))
+                {
+                    g.FillRectangle(shimmerBrush, new Rectangle(shimmerX, rect.Y, 15, rect.Height));
+                }
+            }
+        }
+
+        private void DrawColorBombEffect(Graphics g, Rectangle rect, int phase)
+        {
+            // Draw subtle rainbow tile background
+            DrawRainbowTileBackground(g, rect, phase);
+            
+            int centerX = rect.X + rect.Width / 2;
+            int centerY = rect.Y + rect.Height / 2;
+            
+            // Add outer glow - more subtle
+            int outerGlowPulse = (int)(15 * Math.Sin(phase * Math.PI / 20));
+            using (SolidBrush outerGlow = new SolidBrush(Color.FromArgb(25 + outerGlowPulse, 255, 255, 255)))
+            {
+                Rectangle glowRect = new Rectangle(rect.X - 3, rect.Y - 3, rect.Width + 6, rect.Height + 6);
+                g.FillRoundedRectangle(outerGlow, glowRect, 8);
+            }
+            
+            // Central pulsing core - more subtle
+            int centerPulse = (int)(8 * Math.Sin(phase * Math.PI / 15));
+            using (SolidBrush centerGlow = new SolidBrush(Color.FromArgb(60 + centerPulse, 255, 255, 255)))
+            {
+                g.FillEllipse(centerGlow, centerX - 4, centerY - 4, 8, 8);
+            }
+            
+            using (SolidBrush centerCore = new SolidBrush(Color.FromArgb(255, 255, 255, 255)))
+            {
+                g.FillEllipse(centerCore, centerX - 2, centerY - 2, 4, 4);
             }
         }
 
@@ -1662,6 +2492,181 @@ namespace CrushIt.UI
                     Alpha = 255,
                     ParticleColor = Color.FromArgb(255, 215, 0)
                 });
+            }
+        }
+
+        private void DrawProfessionalScorePanel(Graphics g, int x, int y, int width, int height, int currentScore, int targetScore)
+        {
+            // Ensure minimum dimensions
+            width = Math.Max(width, 200);
+            height = Math.Max(height, 30);
+            
+            // Background with gradient
+            Rectangle panelRect = new Rectangle(x, y, width, height);
+            
+            // Add shadow
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(50, 0, 0, 0)))
+            {
+                g.FillRoundedRectangle(shadow, new Rectangle(x + 3, y + 3, width, height), 8);
+            }
+            
+            // Main gradient background
+            using (LinearGradientBrush bgGradient = new LinearGradientBrush(
+                panelRect,
+                Color.FromArgb(255, 70, 130, 180),
+                Color.FromArgb(255, 40, 90, 140),
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(bgGradient, panelRect, 8);
+            }
+            
+            // Inner glow highlight
+            int innerWidth = Math.Max(width - 4, 1);
+            int innerHeight = Math.Max(height / 2, 1);
+            using (LinearGradientBrush innerGlow = new LinearGradientBrush(
+                new Rectangle(x + 2, y + 2, innerWidth, innerHeight),
+                Color.FromArgb(100, 255, 255, 255),
+                Color.FromArgb(50, 255, 255, 255),
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(innerGlow, new Rectangle(x + 2, y + 2, innerWidth, innerHeight), 6);
+            }
+            
+            // Border
+            using (Pen border = new Pen(Color.FromArgb(255, 100, 160, 210), 2))
+            {
+                g.DrawRoundedRectangle(border, panelRect, 8);
+            }
+            
+            // Icon
+            using (Font iconFont = new Font("Segoe UI Symbol", 18, FontStyle.Bold))
+            {
+                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                {
+                    g.DrawString("⭐", iconFont, new SolidBrush(Color.FromArgb(255, 255, 220, 100)), new Rectangle(x + 25, y, 30, height), sf);
+                }
+            }
+            
+            // Label
+            int labelWidth = Math.Max(width - 80, 1);
+            using (Font labelFont = new Font("Segoe UI", 9, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString("SCORE", labelFont, new SolidBrush(Color.FromArgb(255, 200, 230, 255)), new Rectangle(x + 60, y + 5, labelWidth, height / 2), sf);
+            }
+            
+            // Score value
+            using (Font valueFont = new Font("Segoe UI", 14, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
+            {
+                string scoreText = $"{currentScore} / {targetScore}";
+                g.DrawString(scoreText, valueFont, new SolidBrush(Color.White), new Rectangle(x + 60, y + height / 2, labelWidth, height / 2), sf);
+            }
+            
+            // Progress bar
+            int progressWidth = Math.Max(width - 40, 1);
+            int progressHeight = Math.Max(4, 1);
+            int progressX = x + 30;
+            int progressY = y + height - 8;
+            float progress = Math.Min(1f, (float)currentScore / targetScore);
+            
+            // Progress bar background
+            using (SolidBrush progressBg = new SolidBrush(Color.FromArgb(150, 30, 70, 100)))
+            {
+                g.FillRoundedRectangle(progressBg, new Rectangle(progressX, progressY, progressWidth, progressHeight), 2);
+            }
+            
+            // Progress bar fill
+            int fillWidth = Math.Max((int)(progressWidth * progress), 1);
+            using (LinearGradientBrush progressGradient = new LinearGradientBrush(
+                new Rectangle(progressX, progressY, fillWidth, progressHeight),
+                Color.FromArgb(255, 100, 200, 255),
+                Color.FromArgb(255, 150, 230, 255),
+                LinearGradientMode.Horizontal))
+            {
+                g.FillRoundedRectangle(progressGradient, new Rectangle(progressX, progressY, fillWidth, progressHeight), 2);
+            }
+        }
+
+        private void DrawProfessionalGoldPanel(Graphics g, int x, int y, int width, int height, int gold)
+        {
+            // Ensure minimum dimensions
+            width = Math.Max(width, 200);
+            height = Math.Max(height, 30);
+            
+            // Background with gradient
+            Rectangle panelRect = new Rectangle(x, y, width, height);
+            
+            // Add shadow
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(50, 0, 0, 0)))
+            {
+                g.FillRoundedRectangle(shadow, new Rectangle(x + 3, y + 3, width, height), 8);
+            }
+            
+            // Main gradient background
+            using (LinearGradientBrush bgGradient = new LinearGradientBrush(
+                panelRect,
+                Color.FromArgb(255, 200, 150, 50),
+                Color.FromArgb(255, 170, 120, 30),
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(bgGradient, panelRect, 8);
+            }
+            
+            // Inner glow highlight
+            int innerWidth = Math.Max(width - 4, 1);
+            int innerHeight = Math.Max(height / 2, 1);
+            using (LinearGradientBrush innerGlow = new LinearGradientBrush(
+                new Rectangle(x + 2, y + 2, innerWidth, innerHeight),
+                Color.FromArgb(100, 255, 255, 200),
+                Color.FromArgb(50, 255, 255, 200),
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(innerGlow, new Rectangle(x + 2, y + 2, innerWidth, innerHeight), 6);
+            }
+            
+            // Border
+            using (Pen border = new Pen(Color.FromArgb(255, 220, 180, 80), 2))
+            {
+                g.DrawRoundedRectangle(border, panelRect, 8);
+            }
+            
+            // Icon
+            using (Font iconFont = new Font("Segoe UI Symbol", 18, FontStyle.Bold))
+            {
+                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                {
+                    g.DrawString("💰", iconFont, new SolidBrush(Color.FromArgb(255, 255, 230, 150)), new Rectangle(x + 25, y, 30, height), sf);
+                }
+            }
+            
+            // Label
+            int labelWidth = Math.Max(width - 80, 1);
+            using (Font labelFont = new Font("Segoe UI", 9, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString("GOLD", labelFont, new SolidBrush(Color.FromArgb(255, 255, 230, 200)), new Rectangle(x + 60, y + 5, labelWidth, height / 2), sf);
+            }
+            
+            // Gold value
+            using (Font valueFont = new Font("Segoe UI", 14, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
+            {
+                g.DrawString(gold.ToString(), valueFont, new SolidBrush(Color.White), new Rectangle(x + 60, y + height / 2, labelWidth, height / 2), sf);
+            }
+            
+            // Decorative shine effect
+            int shineX = x + (int)(width * 0.7) + (int)(10 * Math.Sin(pulsePhase * 0.05));
+            int shineY = y + 5;
+            int shineHeight = Math.Max(height - 10, 1);
+            
+            using (LinearGradientBrush shine = new LinearGradientBrush(
+                new Rectangle(shineX, shineY, 15, shineHeight),
+                Color.FromArgb(0, 255, 255, 255),
+                Color.FromArgb(100, 255, 255, 200),
+                LinearGradientMode.Horizontal))
+            {
+                g.FillRoundedRectangle(shine, new Rectangle(shineX, shineY, 15, shineHeight), 4);
             }
         }
     }

@@ -7,6 +7,7 @@ using MongoDB.Driver;
 using CrushIt.Data;
 using CrushIt.Core;
 using CrushIt.API;
+using CrushIt.UI;
 
 namespace CrushIt.UI
 {
@@ -100,6 +101,14 @@ namespace CrushIt.UI
 
             InitializeComponent();
             backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 35, 550, 80, 480));
+            
+            // Handle application lifecycle
+            this.FormClosed += (s, e) => {
+                if (Application.OpenForms.Count == 0)
+                {
+                    Application.Exit();
+                }
+            };
             
             // Initialize floating label positions
             usernameLabelY = usernameRect.Y - 22;
@@ -507,6 +516,20 @@ namespace CrushIt.UI
 
                         if (userAccount.HasCompletedTutorial)
                         {
+                            // Check if MainFrame already exists and refresh it instead of creating new one
+                            foreach (Form form in Application.OpenForms)
+                            {
+                                if (form is MainFrame mainFrame)
+                                {
+                                    mainFrame.RefreshLevelsData();
+                                    mainFrame.Show();
+                                    this.Dispose();
+                                    TriggerSuccessAnimation();
+                                    return;
+                                }
+                            }
+
+                            // If no MainFrame exists, create a new one
                             MainFrame main = new MainFrame(userAccount, database);
                             main.Show();
                         }
@@ -515,6 +538,7 @@ namespace CrushIt.UI
                             TutorialFrame tutorial = new TutorialFrame(userAccount);
                             tutorial.Show();
                         }
+                        this.Dispose();
                         TriggerSuccessAnimation();
                         return;
                     }
@@ -555,6 +579,7 @@ namespace CrushIt.UI
 
                         TutorialFrame tutorial = new TutorialFrame(userAccount);
                         tutorial.Show();
+                        this.Dispose();
                         TriggerSuccessAnimation();
                         return;
                     }
@@ -591,6 +616,20 @@ namespace CrushIt.UI
 
                     if (existingUser.HasCompletedTutorial)
                     {
+                        // Check if MainFrame already exists and refresh it instead of creating new one
+                        foreach (Form form in Application.OpenForms)
+                        {
+                            if (form is MainFrame mainFrame)
+                            {
+                                mainFrame.RefreshLevelsData();
+                                mainFrame.Show();
+                                this.Dispose();
+                                TriggerSuccessAnimation();
+                                return;
+                            }
+                        }
+
+                        // If no MainFrame exists, create a new one
                         MainFrame main = new MainFrame(existingUser, database);
                         main.Show();
                     }
@@ -599,6 +638,7 @@ namespace CrushIt.UI
                         TutorialFrame tutorial = new TutorialFrame(existingUser);
                         tutorial.Show();
                     }
+                    this.Dispose();
                     TriggerSuccessAnimation();
                 }
                 else
@@ -618,6 +658,7 @@ namespace CrushIt.UI
 
                     TutorialFrame tutorial = new TutorialFrame(newUser);
                     tutorial.Show();
+                    this.Dispose();
                     TriggerSuccessAnimation();
                 }
             }

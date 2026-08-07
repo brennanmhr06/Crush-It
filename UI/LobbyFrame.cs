@@ -244,14 +244,29 @@ namespace CrushIt.UI
             {
                 if (e.KeyCode == Keys.Escape)
                 {
-                    Application.Exit();
+                    // Close any existing GameFrames first
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        if (form is GameFrame existingGame)
+                        {
+                            existingGame.Close();
+                            existingGame.Dispose();
+                        }
+                    }
+                    this.Close();
                 }
             };
 
             this.MouseDown += LobbyFrame_MouseDown;
             this.MouseMove += LobbyFrame_MouseMove;
             this.MouseLeave += (s, e) => { hoveredLevelIndex = -1; this.Invalidate(); };
-            this.FormClosed += (s, e) => animationTimer?.Stop();
+            this.FormClosed += (s, e) => {
+                animationTimer?.Stop();
+                if (Application.OpenForms.Count == 0)
+                {
+                    Application.Exit();
+                }
+            };
         }
 
         private void LobbyFrame_MouseMove(object? sender, MouseEventArgs e)
@@ -291,9 +306,34 @@ namespace CrushIt.UI
             {
                 if (clickedNav == NavItem.Home || clickedNav == NavItem.Achievements)
                 {
+                    // Close any existing GameFrames first
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        if (form is GameFrame existingGame)
+                        {
+                            existingGame.Close();
+                            existingGame.Dispose();
+                        }
+                    }
+
+                    // Check if MainFrame already exists and refresh it instead of creating new one
+                    foreach (Form form in Application.OpenForms)
+                    {
+                        if (form is MainFrame mainFrame)
+                        {
+                            mainFrame.RefreshLevelsData();
+                            mainFrame.Show();
+                            this.Hide();
+                            this.Dispose();
+                            return;
+                        }
+                    }
+
+                    // If no MainFrame exists, create a new one
                     MainFrame main = new MainFrame(currentUser, GetDatabase());
                     main.Show();
-                    this.Close();
+                    this.Hide();
+                    this.Dispose();
                 }
                 else
                 {
@@ -314,6 +354,15 @@ namespace CrushIt.UI
                         int dy = e.Y - level.Y;
                         if (dx * dx + dy * dy <= nodeRadius * nodeRadius)
                         {
+                            // Close any existing GameFrames first
+                            foreach (Form form in Application.OpenForms)
+                            {
+                                if (form is GameFrame existingGame)
+                                {
+                                    existingGame.Close();
+                                    existingGame.Dispose();
+                                }
+                            }
 
                             GameFrame game = new GameFrame(currentUser, level.Number);
                             game.Show();

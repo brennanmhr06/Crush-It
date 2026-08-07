@@ -12,8 +12,20 @@ namespace CrushIt
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-
-            Application.Run(new LoadingForm());
+            // Show loading form without tying application lifecycle to it
+            LoadingForm loadingForm = new LoadingForm();
+            loadingForm.Show();
+            
+            // Handle application lifecycle - exit when no forms remain
+            loadingForm.FormClosed += (s, e) => {
+                if (Application.OpenForms.Count == 0)
+                {
+                    Application.Exit();
+                }
+            };
+            
+            // Run application message loop without a main form
+            Application.Run();
         }
     }
 }

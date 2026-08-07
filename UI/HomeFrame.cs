@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using MongoDB.Driver;
 using CrushIt.Data;
 using CrushIt.Core;
+using CrushIt.UI;
 
 namespace CrushIt.UI
 {
@@ -116,7 +117,13 @@ namespace CrushIt.UI
             this.Controls.Add(pencilIconLabel);
             this.Controls.Add(usernameEditBox);
 
-            this.FormClosed += (s, e) => animationTimer?.Stop();
+            this.FormClosed += (s, e) => {
+                animationTimer?.Stop();
+                if (Application.OpenForms.Count == 0)
+                {
+                    Application.Exit();
+                }
+            };
         }
 
         private async void LoadUserData()
@@ -240,15 +247,45 @@ namespace CrushIt.UI
 
             if (clicked == NavItem.Levels)
             {
+                // Check if MainFrame already exists and refresh it instead of creating new one
+                foreach (Form form in Application.OpenForms)
+                {
+                    if (form is MainFrame mainFrame)
+                    {
+                        mainFrame.RefreshLevelsData();
+                        mainFrame.Show();
+                        this.Hide();
+                        this.Dispose();
+                        return;
+                    }
+                }
+
+                // If no MainFrame exists, create a new one
                 MainFrame main = new MainFrame(currentUser, database);
                 main.Show();
-                this.Close();
+                this.Hide();
+                this.Dispose();
             }
             else if (clicked == NavItem.Achievements)
             {
+                // Check if MainFrame already exists and refresh it instead of creating new one
+                foreach (Form form in Application.OpenForms)
+                {
+                    if (form is MainFrame mainFrame)
+                    {
+                        mainFrame.RefreshLevelsData();
+                        mainFrame.Show();
+                        this.Hide();
+                        this.Dispose();
+                        return;
+                    }
+                }
+
+                // If no MainFrame exists, create a new one
                 MainFrame main = new MainFrame(currentUser, database);
                 main.Show();
-                this.Close();
+                this.Hide();
+                this.Dispose();
             }
         }
 

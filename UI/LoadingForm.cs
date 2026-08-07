@@ -458,10 +458,10 @@ namespace CrushIt.UI
             else
             {
                 animationTimer.Stop();
-                this.Hide();
-
+                this.Hide(); // Hide instead of closing/disposing
 
                 string? lastUserEmail = UserSession.GetLastUserEmail();
+                System.Diagnostics.Debug.WriteLine($"Last user email: {lastUserEmail}");
 
                 if (!string.IsNullOrEmpty(lastUserEmail))
                 {
@@ -474,21 +474,26 @@ namespace CrushIt.UI
                             .Find(u => u.Email.ToLower() == lastUserEmail.ToLower())
                             .FirstOrDefaultAsync();
 
+                        System.Diagnostics.Debug.WriteLine($"Existing user found: {existingUser != null}");
+
                         if (existingUser != null)
                         {
                             // Sync progress with server
                             await ProgressSyncService.SyncOnLaunchAsync(existingUser, database, apiClient);
 
+                            Form nextForm;
                             if (existingUser.HasCompletedTutorial)
                             {
-                                MainFrame main = new MainFrame(existingUser, database);
-                                main.Show();
+                                System.Diagnostics.Debug.WriteLine("Opening MainFrame");
+                                nextForm = new MainFrame(existingUser, database);
                             }
                             else
                             {
-                                TutorialFrame tutorial = new TutorialFrame(existingUser);
-                                tutorial.Show();
+                                System.Diagnostics.Debug.WriteLine("Opening TutorialFrame");
+                                nextForm = new TutorialFrame(existingUser);
                             }
+                            nextForm.Show();
+                            // Don't dispose - keep LoadingForm as main form
                             return;
                         }
                     }
@@ -498,9 +503,10 @@ namespace CrushIt.UI
                     }
                 }
 
-
-                SignUpForm signUp = new SignUpForm();
+                System.Diagnostics.Debug.WriteLine("Opening SignUpForm");
+                Form signUp = new SignUpForm();
                 signUp.Show();
+                // Don't dispose - keep LoadingForm as main form
                 return;
             }
 

@@ -111,9 +111,7 @@ namespace CrushIt.UI
             {
                 if (e.KeyCode == Keys.Escape)
                 {
-                    MainFrame main = new MainFrame(currentUser, database);
-                    main.Show();
-                    this.Close();
+                    Application.Exit();
                 }
             };
             this.MouseDown += AchievementsFrame_MouseDown;
@@ -124,9 +122,7 @@ namespace CrushIt.UI
         {
             if (CrushItStyleHelper.TryGetNavClick(e.X, e.Y, this.ClientSize.Width, this.ClientSize.Height, out NavItem nav))
             {
-                MainFrame main = new MainFrame(currentUser, database);
-                main.Show();
-                this.Close();
+                Application.Exit();
             }
 
 
@@ -270,9 +266,7 @@ namespace CrushIt.UI
 
         private void BtnBack_Click(object? sender, EventArgs e)
         {
-            MainFrame main = new MainFrame(currentUser, database);
-            main.Show();
-            this.Close();
+            Application.Exit();
         }
 
         protected override void OnPaint(PaintEventArgs e)

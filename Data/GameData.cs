@@ -15,7 +15,13 @@ namespace CrushIt.Data
             { CandyType.BlueGummy,      40 },
             { CandyType.GreenApple,     30 },
             { CandyType.YellowLemon,    20 },
-            { CandyType.PurplePlum,     10 }
+            { CandyType.PurplePlum,     10 },
+            { CandyType.RedStrawberryStriped, 100 },
+            { CandyType.BlueGummyStriped, 80 },
+            { CandyType.GreenAppleStriped, 60 },
+            { CandyType.YellowLemonStriped, 40 },
+            { CandyType.PurplePlumStriped, 20 },
+            { CandyType.ColorBomb, 150 }
         };
 
 
