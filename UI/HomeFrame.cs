@@ -569,7 +569,7 @@ namespace CrushIt.UI
 
         private void DrawProgressSection(Graphics g)
         {
-            Rectangle section = new Rectangle(50, 490, 800, 55);
+            Rectangle section = new Rectangle(50, 460, 800, 55);
             CrushItStyleHelper.DrawPanel(g, section, Color.FromArgb(255, 120, 90, 175), Color.FromArgb(255, 90, 60, 145), Color.FromArgb(255, 70, 45, 120));
 
             int barX = section.X + 20;

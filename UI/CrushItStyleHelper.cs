@@ -20,7 +20,7 @@ namespace CrushIt.UI
 
     public static class CrushItStyleHelper
     {
-        private static string[] navLabels = { "HOME", "LEVELS", "ACHIEVES", "GUILDS" };
+        private static string[] navLabels = { "HOME", "LEVELS", "AWARDS", "GUILDS" };
 
         public static readonly Color[] ParticleColors = {
             Color.FromArgb(235, 45, 75),

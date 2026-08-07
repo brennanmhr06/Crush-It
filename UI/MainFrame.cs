@@ -61,6 +61,7 @@ namespace CrushIt.UI
 
         private List<Achievement> userAchievements = null!;
         private int scrollOffset = 0;
+        private int targetScrollOffset = 0;
         private List<CoinParticle> coinParticles = new List<CoinParticle>();
         private bool isCoinAnimating = false;
 
@@ -159,6 +160,7 @@ namespace CrushIt.UI
             };
             this.MouseMove += MainFrame_MouseMove;
             this.MouseLeave += MainFrame_MouseLeave;
+            this.MouseWheel += MainFrame_MouseWheel;
 
 
             InitializeHomeControls();
@@ -475,10 +477,12 @@ namespace CrushIt.UI
                 }
             }
 
+            // Sort achievements: Almost completed > Ready to claim > Other locked > Claimed (at bottom)
             userAchievements = userAchievements
-                .OrderByDescending(a => a.IsUnlocked && !a.IsClaimed)
-                .ThenByDescending(a => a.IsUnlocked && a.IsClaimed)
-                .ThenBy(a => a.Type)
+                .OrderByDescending(a => !a.IsUnlocked && CalculateAchievementProgress(a) >= 0.7) // Almost completed - highest priority
+                .ThenByDescending(a => a.IsUnlocked && !a.IsClaimed) // Ready to claim - second priority
+                .ThenBy(a => a.IsUnlocked && a.IsClaimed) // Claimed - lowest priority (goes to bottom)
+                .ThenBy(a => a.Type) // Locked achievements in type order
                 .ToList();
         }
 
@@ -510,6 +514,14 @@ namespace CrushIt.UI
 
             UpdateControlVisibility();
 
+            // Smooth scroll animation
+            if (scrollOffset != targetScrollOffset)
+            {
+                int diff = targetScrollOffset - scrollOffset;
+                scrollOffset += diff / 10;
+                if (Math.Abs(diff) < 1)
+                    scrollOffset = targetScrollOffset;
+            }
 
             if (isCoinAnimating)
             {
@@ -561,6 +573,27 @@ namespace CrushIt.UI
             if (currentPage == PageType.Guilds)
             {
                 HandleGuildsMouseLeave();
+            }
+        }
+
+        private void MainFrame_MouseWheel(object? sender, MouseEventArgs e)
+        {
+            if (currentPage == PageType.Achievements)
+            {
+                int scrollAmount = e.Delta / 10;
+                targetScrollOffset += scrollAmount;
+
+                // Calculate scroll bounds
+                int startY = 150;
+                int achievementHeight = 95;
+                int gap = 18;
+                int totalHeight = userAchievements.Count * (achievementHeight + gap) + startY;
+                int maxScroll = Math.Max(0, totalHeight - (this.ClientSize.Height - 100));
+
+                if (targetScrollOffset < -maxScroll) targetScrollOffset = -maxScroll;
+                if (targetScrollOffset > 0) targetScrollOffset = 0;
+
+                this.Invalidate();
             }
         }
 
@@ -895,8 +928,8 @@ namespace CrushIt.UI
         private void HandleAchievementsClick(MouseEventArgs e)
         {
             int startY = 150;
-            int achievementHeight = 70;
-            int gap = 15;
+            int achievementHeight = 95;
+            int gap = 18;
             int availableWidth = 800;
             int startX = 50;
             int y = startY + scrollOffset;
@@ -911,20 +944,11 @@ namespace CrushIt.UI
 
                 Rectangle achievementRect = new Rectangle(startX, y, availableWidth, achievementHeight);
 
-                if (achievement.IsUnlocked && !achievement.IsClaimed)
+                // Click anywhere on the card to claim if it's ready
+                if (achievement.IsUnlocked && !achievement.IsClaimed && achievementRect.Contains(e.X, e.Y))
                 {
-                    int claimButtonWidth = 100;
-                    int claimButtonHeight = 35;
-                    int claimButtonX = achievementRect.Right - claimButtonWidth - 15;
-                    int claimButtonY = achievementRect.Y + (achievementHeight - claimButtonHeight) / 2;
-
-                    Rectangle claimButtonRect = new Rectangle(claimButtonX, claimButtonY, claimButtonWidth, claimButtonHeight);
-
-                    if (claimButtonRect.Contains(e.X, e.Y))
-                    {
-                        ClaimAchievement(achievement);
-                        break;
-                    }
+                    ClaimAchievement(achievement);
+                    break;
                 }
 
                 y += achievementHeight + gap;
@@ -1045,6 +1069,9 @@ namespace CrushIt.UI
             {
                 System.Diagnostics.Debug.WriteLine($"Failed to claim achievement: {ex.Message}");
             }
+
+            // Re-sort achievements to move claimed ones to bottom
+            LoadAchievementsData();
 
             StartCoinAnimation();
             LoadHomeData();
@@ -1380,7 +1407,7 @@ namespace CrushIt.UI
 
         private void DrawProgressSection(Graphics g)
         {
-            Rectangle section = new Rectangle(50, 440, 800, 55);
+            Rectangle section = new Rectangle(50, 410, 800, 55);
             CrushItStyleHelper.DrawPanel(g, section, Color.FromArgb(255, 120, 90, 175), Color.FromArgb(255, 90, 60, 145), Color.FromArgb(255, 70, 45, 120));
 
             int barX = section.X + 20;
@@ -1419,10 +1446,19 @@ namespace CrushIt.UI
         private void DrawAchievementsList(Graphics g)
         {
             int startY = 150;
-            int achievementHeight = 70;
-            int gap = 15;
+            int achievementHeight = 95;
+            int gap = 18;
             int availableWidth = 800;
             int startX = 50;
+
+            // Calculate scroll bounds
+            int totalHeight = userAchievements.Count * (achievementHeight + gap) + startY;
+            int maxScroll = Math.Max(0, totalHeight - (this.ClientSize.Height - 100));
+
+            // Ensure scroll offset is within bounds
+            if (targetScrollOffset < -maxScroll) targetScrollOffset = -maxScroll;
+            if (targetScrollOffset > 0) targetScrollOffset = 0;
+
             int y = startY + scrollOffset;
 
             foreach (var achievement in userAchievements)
@@ -1441,80 +1477,223 @@ namespace CrushIt.UI
 
         private void DrawAchievementItem(Graphics g, Achievement achievement, Rectangle rect)
         {
-            Color topColor, bottomColor, borderColor;
-            if (achievement.IsClaimed)
+            // Calculate progress for locked achievements
+            double progress = CalculateAchievementProgress(achievement);
+            bool isCloseToUnlock = !achievement.IsUnlocked && progress >= 0.7; // 70%+ progress
+
+            // Enhanced card styling
+            Color topColor, bottomColor, borderColor, glowColor;
+            if (achievement.IsUnlocked && !achievement.IsClaimed)
             {
-                topColor = Color.FromArgb(255, 120, 200, 120);
-                bottomColor = Color.FromArgb(255, 80, 160, 80);
-                borderColor = Color.FromArgb(255, 50, 120, 50);
+                topColor = Color.FromArgb(255, 140, 220, 140);
+                bottomColor = Color.FromArgb(255, 80, 180, 80);
+                borderColor = Color.FromArgb(255, 50, 150, 50);
+                glowColor = Color.FromArgb(255, 100, 255, 100);
             }
             else if (achievement.IsUnlocked)
             {
-                topColor = Color.FromArgb(255, 200, 180, 100);
-                bottomColor = Color.FromArgb(255, 160, 140, 60);
-                borderColor = Color.FromArgb(255, 120, 100, 40);
+                topColor = Color.FromArgb(255, 220, 180, 120);
+                bottomColor = Color.FromArgb(255, 180, 140, 70);
+                borderColor = Color.FromArgb(255, 150, 100, 40);
+                glowColor = Color.FromArgb(255, 255, 200, 100);
+            }
+            else if (isCloseToUnlock)
+            {
+                // Close to unlock - highlight with gold/orange
+                topColor = Color.FromArgb(255, 180, 140, 100);
+                bottomColor = Color.FromArgb(255, 140, 100, 60);
+                borderColor = Color.FromArgb(255, 200, 150, 50);
+                glowColor = Color.FromArgb(255, 255, 180, 80);
             }
             else
             {
-                topColor = Color.FromArgb(255, 80, 70, 100);
-                bottomColor = Color.FromArgb(255, 50, 40, 70);
-                borderColor = Color.FromArgb(255, 40, 30, 60);
+                topColor = Color.FromArgb(255, 100, 85, 125);
+                bottomColor = Color.FromArgb(255, 70, 60, 100);
+                borderColor = Color.FromArgb(255, 55, 50, 80);
+                glowColor = Color.FromArgb(255, 120, 120, 120);
             }
 
-            CrushItStyleHelper.DrawPanel(g, rect, topColor, bottomColor, borderColor);
-
-
-            Rectangle iconRect = new Rectangle(rect.X + 15, rect.Y + 10, 50, 50);
-            Color iconColor = ColorTranslator.FromHtml(achievement.IconColor);
-            using (SolidBrush iconBrush = new SolidBrush(iconColor))
-                g.FillEllipse(iconBrush, iconRect);
-
-
-            using (Font nameFont = new Font("Comic Sans MS", 14, FontStyle.Bold))
-            using (Font descFont = new Font("Comic Sans MS", 10))
-            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
+            // Draw enhanced shadow
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(20, 0, 0, 0)))
             {
-                Color textColor = achievement.IsUnlocked ? Color.White : Color.FromArgb(180, 160, 160, 175);
-                CrushItStyleHelper.DrawOutlinedText(g, achievement.Name, nameFont,
-                    new Rectangle(rect.X + 80, rect.Y + 15, 400, 20),
-                    textColor, Color.Black, 1, sf);
-
-                CrushItStyleHelper.DrawOutlinedText(g, achievement.Description, descFont,
-                    new Rectangle(rect.X + 80, rect.Y + 40, 400, 15),
-                    Color.FromArgb(255, 200, 200, 220), Color.Black, 1, sf);
+                g.FillRectangle(shadow, new Rectangle(rect.X + 6, rect.Y + 6, rect.Width, rect.Height));
             }
 
-
-            if (achievement.IsUnlocked && !achievement.IsClaimed)
+            // Draw main card with gradient
+            using (LinearGradientBrush cardBrush = new LinearGradientBrush(
+                rect, topColor, bottomColor, LinearGradientMode.Vertical))
             {
-                int claimButtonWidth = 100;
-                int claimButtonHeight = 35;
-                int claimButtonX = rect.Right - claimButtonWidth - 15;
-                int claimButtonY = rect.Y + (rect.Height - claimButtonHeight) / 2;
+                g.FillRectangle(cardBrush, rect);
+            }
 
-                Rectangle claimButtonRect = new Rectangle(claimButtonX, claimButtonY, claimButtonWidth, claimButtonHeight);
-                CrushItStyleHelper.DrawPanel(g, claimButtonRect,
-                    Color.FromArgb(255, 100, 200, 100),
-                    Color.FromArgb(255, 60, 160, 60),
-                    Color.FromArgb(255, 40, 120, 40));
+            // Draw border
+            using (Pen borderPen = new Pen(borderColor, 3))
+            {
+                g.DrawRectangle(borderPen, rect);
+            }
 
-                using (Font claimFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
-                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            // Inner highlight
+            using (SolidBrush highlight = new SolidBrush(Color.FromArgb(80, 255, 255, 255)))
+            {
+                g.FillRectangle(highlight, rect.X + 3, rect.Y + 3, rect.Width - 6, 8);
+            }
+
+            // Glow effect for unlocked achievements
+            if (achievement.IsUnlocked)
+            {
+                int glowAlpha = 60 + (int)(30 * Math.Sin(pulsePhase * Math.PI / 25));
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(glowAlpha, glowColor)))
                 {
-                    CrushItStyleHelper.DrawOutlinedText(g, $"CLAIM {achievement.GoldReward}", claimFont, claimButtonRect, Color.White, Color.Black, 1, sf);
+                    g.FillRectangle(glowBrush, rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
                 }
             }
-            else if (achievement.IsClaimed)
-            {
-                int claimedX = rect.Right - 80;
-                int claimedY = rect.Y + (rect.Height - 30) / 2;
-                Rectangle claimedRect = new Rectangle(claimedX, claimedY, 70, 30);
 
-                using (Font claimedFont = new Font("Comic Sans MS", 10, FontStyle.Bold))
+            // Trophy icon for achievement
+            int iconSize = 60;
+            int iconX = rect.X + 18;
+            int iconY = rect.Y + (rect.Height - iconSize) / 2;
+
+            string trophyIcon = achievement.IsUnlocked ? "🏆" : "🔒";
+            using (Font trophyFont = new Font("Segoe UI Emoji", 36))
+            {
                 using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
                 {
-                    CrushItStyleHelper.DrawOutlinedText(g, "CLAIMED", claimedFont, claimedRect, Color.FromArgb(255, 150, 255, 150), Color.Black, 1, sf);
+                    g.DrawString(trophyIcon, trophyFont, Brushes.White, new RectangleF(iconX, iconY, iconSize, iconSize), sf);
                 }
+            }
+
+            // Achievement name
+            using (Font nameFont = new Font("Comic Sans MS", 17, FontStyle.Bold))
+            {
+                Color nameColor = achievement.IsUnlocked ? Color.White : Color.FromArgb(200, 200, 200);
+                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near })
+                {
+                    g.DrawString(achievement.Name, nameFont, Brushes.Black,
+                        new RectangleF(iconX + iconSize + 20, rect.Y + 12, rect.Width - iconSize - 180, 28), sf);
+                    g.DrawString(achievement.Name, nameFont, new SolidBrush(nameColor),
+                        new RectangleF(iconX + iconSize + 18, rect.Y + 10, rect.Width - iconSize - 180, 28), sf);
+                }
+            }
+
+            // Achievement description
+            using (Font descFont = new Font("Comic Sans MS", 12))
+            {
+                Color descColor = achievement.IsUnlocked ? Color.FromArgb(245, 245, 245) : Color.FromArgb(170, 170, 170);
+                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near })
+                {
+                    g.DrawString(achievement.Description, descFont, new SolidBrush(descColor),
+                        new RectangleF(iconX + iconSize + 20, rect.Y + 42, rect.Width - iconSize - 180, 35), sf);
+                }
+            }
+
+            // Gold reward display
+            if (achievement.GoldReward > 0)
+            {
+                using (Font goldFont = new Font("Comic Sans MS", 13, FontStyle.Bold))
+                {
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near })
+                    {
+                        string goldText = achievement.IsUnlocked ? $"+{achievement.GoldReward} Gold" : $"{achievement.GoldReward} Gold";
+                        Color goldColor = achievement.IsUnlocked ? Color.FromArgb(255, 215, 0) : Color.FromArgb(180, 180, 180);
+                        int goldY = isCloseToUnlock ? rect.Y + 55 : rect.Y + 72;
+                        g.DrawString(goldText, goldFont, new SolidBrush(goldColor),
+                            new RectangleF(iconX + iconSize + 20, goldY, rect.Width - iconSize - 50, 20), sf);
+                    }
+                }
+            }
+
+            // Progress indicator for locked achievements close to unlock
+            if (!achievement.IsUnlocked && isCloseToUnlock)
+            {
+                int progressWidth = 120;
+                int progressHeight = 8;
+                int progressX = iconX + iconSize + 20;
+                int progressY = rect.Y + 65;
+
+                // Progress bar background
+                using (SolidBrush progressBg = new SolidBrush(Color.FromArgb(150, 60, 60, 80)))
+                {
+                    g.FillRectangle(progressBg, progressX, progressY, progressWidth, progressHeight);
+                }
+
+                // Progress bar fill
+                int fillWidth = (int)(progressWidth * progress);
+                using (SolidBrush progressFill = new SolidBrush(Color.FromArgb(255, 255, 180, 60)))
+                {
+                    g.FillRectangle(progressFill, progressX, progressY, fillWidth, progressHeight);
+                }
+
+                // Progress percentage text - positioned to the right of progress bar
+                using (Font progressFont = new Font("Comic Sans MS", 10, FontStyle.Bold))
+                {
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near })
+                    {
+                        g.DrawString($"{(int)(progress * 100)}%", progressFont, new SolidBrush(Color.FromArgb(255, 255, 200, 100)),
+                            new RectangleF(progressX + progressWidth + 8, progressY - 2, 40, 15), sf);
+                    }
+                }
+            }
+
+            // Claim button or status - removed to prevent cutoff
+            // Achievements can still be claimed by clicking the card
+        }
+
+        private double CalculateAchievementProgress(Achievement achievement)
+        {
+            // Calculate progress based on achievement type and current user stats
+            switch (achievement.Type)
+            {
+                case AchievementType.FirstMatch:
+                    return currentUser.TotalMatches > 0 ? 1.0 : 0.0;
+
+                case AchievementType.Level1Complete:
+                    return currentUser.CompletedLevels?.Contains(1) == true ? 1.0 : 0.0;
+
+                case AchievementType.Level5Complete:
+                    int completedLevels = currentUser.CompletedLevels?.Count ?? 0;
+                    return Math.Min(1.0, completedLevels / 5.0);
+
+                case AchievementType.Level10Complete:
+                    completedLevels = currentUser.CompletedLevels?.Count ?? 0;
+                    return Math.Min(1.0, completedLevels / 10.0);
+
+                case AchievementType.Score1000:
+                    return Math.Min(1.0, currentUser.HighestScore / 1000.0);
+
+                case AchievementType.Score5000:
+                    return Math.Min(1.0, currentUser.HighestScore / 5000.0);
+
+                case AchievementType.Score10000:
+                    return Math.Min(1.0, currentUser.HighestScore / 10000.0);
+
+                case AchievementType.Gold100:
+                    return Math.Min(1.0, currentUser.Gold / 100.0);
+
+                case AchievementType.Gold500:
+                    return Math.Min(1.0, currentUser.Gold / 500.0);
+
+                case AchievementType.Gold1000:
+                    return Math.Min(1.0, currentUser.Gold / 1000.0);
+
+                case AchievementType.TotalMatches100:
+                    return Math.Min(1.0, currentUser.TotalMatches / 100.0);
+
+                case AchievementType.TotalMatches500:
+                    return Math.Min(1.0, currentUser.TotalMatches / 500.0);
+
+                case AchievementType.TotalMatches1000:
+                    return Math.Min(1.0, currentUser.TotalMatches / 1000.0);
+
+                // Combo and special achievements - estimated progress
+                case AchievementType.Combo3:
+                case AchievementType.Combo5:
+                case AchievementType.SquareMatch:
+                    // These are harder to track without detailed session data
+                    // Return 0 for now since we can't accurately calculate progress
+                    return 0.0;
+
+                default:
+                    return 0.0;
             }
         }
 

@@ -20,8 +20,8 @@ namespace CrushIt.UI
         public string Description { get; set; } = string.Empty;
         public int DisplayTime { get; set; } = 0;
         public int MaxDisplayTime { get; set; } = 180;
-        public float Y { get; set; } = -100;
-        public float TargetY { get; set; } = 50;
+        public float Y { get; set; } = -120;
+        public float TargetY { get; set; } = 30;
     }
 
     public class MatchInfo
@@ -1534,8 +1534,8 @@ namespace CrushIt.UI
             {
                 AchievementName = achievement.Name,
                 Description = achievement.Description,
-                Y = -100,
-                TargetY = 50 + (achievementNotifications.Count * 60)
+                Y = -120,
+                TargetY = 30 + (achievementNotifications.Count * 75)
             };
 
             achievementNotifications.Add(notification);
@@ -1570,55 +1570,74 @@ namespace CrushIt.UI
         {
             foreach (var notification in achievementNotifications)
             {
-                int notificationWidth = 400;
-                int notificationHeight = 80;
+                int notificationWidth = 450;
+                int notificationHeight = 100;
                 int notificationX = (this.ClientSize.Width - notificationWidth) / 2;
                 int notificationY = (int)notification.Y;
 
                 Rectangle notificationRect = new Rectangle(notificationX, notificationY, notificationWidth, notificationHeight);
 
-
-                using (SolidBrush shadow = new SolidBrush(Color.FromArgb(10, 5, 15)))
+                // Enhanced shadow with blur effect
+                using (SolidBrush shadow = new SolidBrush(Color.FromArgb(30, 0, 0, 0)))
                 {
-                    g.FillRectangle(shadow, new Rectangle(notificationRect.X + 4, notificationRect.Y + 4, notificationRect.Width, notificationRect.Height));
+                    g.FillRectangle(shadow, new Rectangle(notificationRect.X + 6, notificationRect.Y + 6, notificationRect.Width, notificationRect.Height));
                 }
 
-
-                using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(50, 180, 50)))
+                // Gradient background
+                using (LinearGradientBrush bgBrush = new LinearGradientBrush(
+                    notificationRect,
+                    Color.FromArgb(255, 255, 215, 0),
+                    Color.FromArgb(255, 255, 140, 0),
+                    LinearGradientMode.Vertical))
                 {
                     g.FillRectangle(bgBrush, notificationRect);
                 }
 
+                // Inner highlight
+                using (SolidBrush highlight = new SolidBrush(Color.FromArgb(100, 255, 255, 255)))
+                {
+                    g.FillRectangle(highlight, notificationRect.X + 4, notificationRect.Y + 4, notificationRect.Width - 8, 8);
+                }
 
-                using (Pen borderPen = new Pen(Color.FromArgb(30, 150, 30), 3))
+                // Border with glow effect
+                using (Pen borderPen = new Pen(Color.FromArgb(255, 255, 200, 50), 4))
                 {
                     g.DrawRectangle(borderPen, notificationRect);
                 }
 
+                // Trophy icon
+                using (Font trophyFont = new Font("Segoe UI Emoji", 32))
+                {
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                    {
+                        g.DrawString("🏆", trophyFont, Brushes.Gold, new RectangleF(notificationRect.X + 20, notificationRect.Y + 20, 50, 60), sf);
+                    }
+                }
 
+                // Achievement title
+                using (Font titleFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
+                {
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near })
+                    {
+                        g.DrawString("ACHIEVEMENT UNLOCKED!", titleFont, Brushes.White, new RectangleF(notificationRect.X + 80, notificationRect.Y + 12, notificationRect.Width - 100, 20), sf);
+                    }
+                }
+
+                // Achievement name
                 using (Font nameFont = new Font("Comic Sans MS", 16, FontStyle.Bold))
                 {
-                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near })
                     {
-                        g.DrawString("ACHIEVEMENT UNLOCKED!", nameFont, Brushes.White, new RectangleF(notificationRect.X, notificationRect.Y + 5, notificationRect.Width, 25), sf);
+                        g.DrawString(notification.AchievementName, nameFont, Brushes.Gold, new RectangleF(notificationRect.X + 80, notificationRect.Y + 35, notificationRect.Width - 100, 25), sf);
                     }
                 }
 
-
-                using (Font achievementFont = new Font("Comic Sans MS", 14, FontStyle.Bold))
+                // Achievement description
+                using (Font descFont = new Font("Comic Sans MS", 11))
                 {
-                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Near })
                     {
-                        g.DrawString(notification.AchievementName, achievementFont, Brushes.Yellow, new RectangleF(notificationRect.X, notificationRect.Y + 30, notificationRect.Width, 20), sf);
-                    }
-                }
-
-
-                using (Font descFont = new Font("Comic Sans MS", 10))
-                {
-                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                    {
-                        g.DrawString(notification.Description, descFont, Brushes.White, new RectangleF(notificationRect.X, notificationRect.Y + 50, notificationRect.Width, 25), sf);
+                        g.DrawString(notification.Description, descFont, Brushes.White, new RectangleF(notificationRect.X + 80, notificationRect.Y + 60, notificationRect.Width - 100, 30), sf);
                     }
                 }
             }
