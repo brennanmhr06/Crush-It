@@ -10,6 +10,19 @@ using CrushIt.API;
 
 namespace CrushIt.UI
 {
+    public class ConfettiParticle
+    {
+        public float X { get; set; }
+        public float Y { get; set; }
+        public float SpeedX { get; set; }
+        public float SpeedY { get; set; }
+        public float Rotation { get; set; }
+        public float RotationSpeed { get; set; }
+        public Color Color { get; set; }
+        public int Size { get; set; }
+        public float Alpha { get; set; }
+    }
+
     public class SignUpForm : Form
     {
         private readonly IMongoCollection<UserAccount> usersCollection;
@@ -32,12 +45,29 @@ namespace CrushIt.UI
         private Rectangle passwordRect;
         private Rectangle togglePasswordRect;
         private Rectangle buttonRect;
+        private Rectangle titleRect;
+        private Rectangle subtitleRect;
+        private Rectangle panelRect;
         private bool isUsernameFocused = false;
         private bool isEmailFocused = false;
         private bool isPasswordFocused = false;
         private bool isButtonHovered = false;
         private bool isToggleHovered = false;
         private bool showPassword = false;
+        private float usernameFocusAlpha = 0f;
+        private float emailFocusAlpha = 0f;
+        private float passwordFocusAlpha = 0f;
+        private float buttonScale = 1f;
+        private float buttonPressDepth = 0f;
+        private int shakeIntensity = 0;
+        private int shakePhase = 0;
+        private float loadingRotation = 0f;
+        private bool showSuccessAnimation = false;
+        private int successAnimationPhase = 0;
+        private readonly List<ConfettiParticle> confettiParticles = new List<ConfettiParticle>();
+        private float usernameLabelY = 0f;
+        private float emailLabelY = 0f;
+        private float passwordLabelY = 0f;
 
         public SignUpForm()
         {
@@ -70,6 +100,12 @@ namespace CrushIt.UI
 
             InitializeComponent();
             backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 35, 550, 80, 480));
+            
+            // Initialize floating label positions
+            usernameLabelY = usernameRect.Y - 22;
+            emailLabelY = emailRect.Y - 22;
+            passwordLabelY = passwordRect.Y - 22;
+            
             StartAnimation();
 
 
@@ -79,7 +115,7 @@ namespace CrushIt.UI
         private void InitializeComponent()
         {
             this.Text = "Crush It! - Account";
-            this.Size = new Size(550, 600);
+            this.Size = new Size(580, 650);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -90,13 +126,16 @@ namespace CrushIt.UI
             this.MouseMove += SignUpForm_MouseMove;
             this.MouseLeave += (s, e) => { isButtonHovered = false; isToggleHovered = false; this.Cursor = Cursors.Default; this.Invalidate(); };
 
-
-            int centerX = 275;
-            usernameRect = new Rectangle(centerX - 165, 160, 330, 45);
-            emailRect = new Rectangle(centerX - 165, 240, 330, 45);
-            passwordRect = new Rectangle(centerX - 165, 320, 290, 45);
-            togglePasswordRect = new Rectangle(passwordRect.Right + 10, passwordRect.Y + 10, 30, 25);
-            buttonRect = new Rectangle(centerX - 125, 420, 250, 55);
+            int centerX = 290;
+            titleRect = new Rectangle(centerX - 180, 25, 360, 50);
+            subtitleRect = new Rectangle(centerX - 180, 80, 360, 30);
+            panelRect = new Rectangle(centerX - 190, 120, 380, 380);
+            
+            usernameRect = new Rectangle(centerX - 150, 160, 300, 50);
+            emailRect = new Rectangle(centerX - 150, 245, 300, 50);
+            passwordRect = new Rectangle(centerX - 150, 330, 260, 50);
+            togglePasswordRect = new Rectangle(passwordRect.Right + 15, passwordRect.Y + 12, 35, 28);
+            buttonRect = new Rectangle(centerX - 120, 445, 240, 60);
 
             this.FormClosed += (s, e) => animationTimer?.Stop();
         }
@@ -113,7 +152,110 @@ namespace CrushIt.UI
         {
             pulsePhase++;
             CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 120);
+            
+            // Animate focus states
+            float targetAlpha = isUsernameFocused ? 1f : 0f;
+            usernameFocusAlpha += (targetAlpha - usernameFocusAlpha) * 0.15f;
+            
+            targetAlpha = isEmailFocused ? 1f : 0f;
+            emailFocusAlpha += (targetAlpha - emailFocusAlpha) * 0.15f;
+            
+            targetAlpha = isPasswordFocused ? 1f : 0f;
+            passwordFocusAlpha += (targetAlpha - passwordFocusAlpha) * 0.15f;
+            
+            // Animate button scale
+            float targetScale = isButtonHovered ? 1.05f : 1f;
+            buttonScale += (targetScale - buttonScale) * 0.1f;
+            
+            // Animate button press depth
+            float targetDepth = isButtonHovered ? 3f : 0f;
+            buttonPressDepth += (targetDepth - buttonPressDepth) * 0.2f;
+            
+            // Shake animation for errors
+            if (shakeIntensity > 0)
+            {
+                shakePhase += 8;
+                shakeIntensity -= 1;
+                if (shakeIntensity < 0) shakeIntensity = 0;
+            }
+            
+            // Loading spinner rotation
+            if (isProcessing)
+            {
+                loadingRotation += 0.15f;
+            }
+            
+            // Floating label animation
+            AnimateFloatingLabels();
+            
+            // Success confetti animation
+            if (showSuccessAnimation)
+            {
+                successAnimationPhase++;
+                UpdateConfetti();
+                if (successAnimationPhase > 180)
+                {
+                    showSuccessAnimation = false;
+                    confettiParticles.Clear();
+                }
+            }
+            
             this.Invalidate();
+        }
+        
+        private void AnimateFloatingLabels()
+        {
+            float targetUsernameY = (isUsernameFocused || !string.IsNullOrEmpty(usernameInput)) ? usernameRect.Y - 30 : usernameRect.Y - 22;
+            usernameLabelY += (targetUsernameY - usernameLabelY) * 0.12f;
+            
+            float targetEmailY = (isEmailFocused || !string.IsNullOrEmpty(emailInput)) ? emailRect.Y - 30 : emailRect.Y - 22;
+            emailLabelY += (targetEmailY - emailLabelY) * 0.12f;
+            
+            float targetPasswordY = (isPasswordFocused || !string.IsNullOrEmpty(passwordInput)) ? passwordRect.Y - 30 : passwordRect.Y - 22;
+            passwordLabelY += (targetPasswordY - passwordLabelY) * 0.12f;
+        }
+        
+        private void UpdateConfetti()
+        {
+            foreach (var confetti in confettiParticles)
+            {
+                confetti.X += confetti.SpeedX;
+                confetti.Y += confetti.SpeedY;
+                confetti.SpeedY += 0.15f; // Gravity
+                confetti.Rotation += confetti.RotationSpeed;
+                confetti.Alpha -= 0.008f;
+            }
+            
+            confettiParticles.RemoveAll(c => c.Alpha <= 0 || c.Y > this.ClientSize.Height);
+        }
+        
+        private void TriggerShakeAnimation()
+        {
+            shakeIntensity = 15;
+            shakePhase = 0;
+        }
+        
+        private void TriggerSuccessAnimation()
+        {
+            showSuccessAnimation = true;
+            successAnimationPhase = 0;
+            confettiParticles.Clear();
+            
+            for (int i = 0; i < 50; i++)
+            {
+                confettiParticles.Add(new ConfettiParticle
+                {
+                    X = this.ClientSize.Width / 2,
+                    Y = this.ClientSize.Height / 2,
+                    SpeedX = (float)(particleRand.NextDouble() * 10 - 5),
+                    SpeedY = (float)(particleRand.NextDouble() * -15 - 5),
+                    Rotation = 0,
+                    RotationSpeed = (float)(particleRand.NextDouble() * 0.3 - 0.15),
+                    Color = CrushItStyleHelper.ParticleColors[particleRand.Next(CrushItStyleHelper.ParticleColors.Length)],
+                    Size = particleRand.Next(6, 12),
+                    Alpha = 1f
+                });
+            }
         }
 
 
@@ -220,6 +362,7 @@ namespace CrushIt.UI
             {
                 statusMessage = "Please fill in all details!";
                 statusColor = Color.FromArgb(255, 120, 120);
+                TriggerShakeAnimation();
                 this.Invalidate();
                 return;
             }
@@ -228,6 +371,7 @@ namespace CrushIt.UI
             {
                 statusMessage = "Username must be at least 3 characters.";
                 statusColor = Color.FromArgb(255, 120, 120);
+                TriggerShakeAnimation();
                 this.Invalidate();
                 return;
             }
@@ -236,6 +380,7 @@ namespace CrushIt.UI
             {
                 statusMessage = "Enter a valid email address.";
                 statusColor = Color.FromArgb(255, 120, 120);
+                TriggerShakeAnimation();
                 this.Invalidate();
                 return;
             }
@@ -245,6 +390,7 @@ namespace CrushIt.UI
             {
                 statusMessage = "Password must be at least 8 characters.";
                 statusColor = Color.FromArgb(255, 120, 120);
+                TriggerShakeAnimation();
                 this.Invalidate();
                 return;
             }
@@ -266,6 +412,7 @@ namespace CrushIt.UI
             {
                 statusMessage = "Password must contain an uppercase letter.";
                 statusColor = Color.FromArgb(255, 120, 120);
+                TriggerShakeAnimation();
                 this.Invalidate();
                 return;
             }
@@ -274,6 +421,7 @@ namespace CrushIt.UI
             {
                 statusMessage = "Password must contain a lowercase letter.";
                 statusColor = Color.FromArgb(255, 120, 120);
+                TriggerShakeAnimation();
                 this.Invalidate();
                 return;
             }
@@ -282,6 +430,7 @@ namespace CrushIt.UI
             {
                 statusMessage = "Password must contain a number.";
                 statusColor = Color.FromArgb(255, 120, 120);
+                TriggerShakeAnimation();
                 this.Invalidate();
                 return;
             }
@@ -290,6 +439,7 @@ namespace CrushIt.UI
             {
                 statusMessage = "Password must contain a special character.";
                 statusColor = Color.FromArgb(255, 120, 120);
+                TriggerShakeAnimation();
                 this.Invalidate();
                 return;
             }
@@ -365,6 +515,7 @@ namespace CrushIt.UI
                             TutorialFrame tutorial = new TutorialFrame(userAccount);
                             tutorial.Show();
                         }
+                        TriggerSuccessAnimation();
                         return;
                     }
 
@@ -404,6 +555,7 @@ namespace CrushIt.UI
 
                         TutorialFrame tutorial = new TutorialFrame(userAccount);
                         tutorial.Show();
+                        TriggerSuccessAnimation();
                         return;
                     }
 
@@ -447,6 +599,7 @@ namespace CrushIt.UI
                         TutorialFrame tutorial = new TutorialFrame(existingUser);
                         tutorial.Show();
                     }
+                    TriggerSuccessAnimation();
                 }
                 else
                 {
@@ -465,6 +618,7 @@ namespace CrushIt.UI
 
                     TutorialFrame tutorial = new TutorialFrame(newUser);
                     tutorial.Show();
+                    TriggerSuccessAnimation();
                 }
             }
             catch (Exception ex)
@@ -493,99 +647,256 @@ namespace CrushIt.UI
 
             CrushItStyleHelper.DrawCartoonBackground(g, this.ClientRectangle, pulsePhase);
             CrushItStyleHelper.DrawBackgroundParticles(g, backgroundParticles);
+            
+            // Apply shake offset for error animation
+            int shakeX = 0, shakeY = 0;
+            if (shakeIntensity > 0)
+            {
+                shakeX = (int)(shakeIntensity * Math.Sin(shakePhase * Math.PI / 180));
+                shakeY = (int)(shakeIntensity * Math.Cos(shakePhase * Math.PI / 180));
+            }
+            
+            GraphicsState gstate = g.Save();
+            g.TranslateTransform(shakeX, shakeY);
+            
             DrawTitleBanner(g);
             DrawInputPanel(g);
             DrawStatusMessage(g);
+            
+            g.Restore(gstate);
+            
+            // Draw confetti on top
+            if (showSuccessAnimation)
+            {
+                DrawConfetti(g);
+            }
         }
 
         private void DrawTitleBanner(Graphics g)
         {
-            CrushItStyleHelper.DrawTitleBanner(g, new Rectangle(75, 20, 400, 55), "JOIN THE FUN");
-
-            using (Font subFont = new Font("Comic Sans MS", 12, FontStyle.Italic))
+            // Enhanced title with gradient and glow
+            using (LinearGradientBrush titleGradient = new LinearGradientBrush(
+                titleRect, 
+                Color.FromArgb(255, 255, 180, 50), 
+                Color.FromArgb(255, 255, 120, 30), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(titleGradient, titleRect, 25);
+            }
+            
+            // Glassmorphism effect
+            using (LinearGradientBrush glassBrush = new LinearGradientBrush(
+                titleRect, 
+                Color.FromArgb(60, 255, 255, 255), 
+                Color.FromArgb(30, 255, 255, 255), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(glassBrush, titleRect, 25);
+            }
+            
+            // Glow effect
+            int glowPulse = (int)(10 * Math.Sin(pulsePhase * Math.PI / 40));
+            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(30 + glowPulse, 255, 200, 100)))
+            {
+                Rectangle glowRect = new Rectangle(titleRect.X - 2, titleRect.Y - 2, titleRect.Width + 4, titleRect.Height + 4);
+                g.FillRoundedRectangle(glowBrush, glowRect, 27);
+            }
+            
+            // Border
+            using (Pen borderPen = new Pen(Color.FromArgb(255, 255, 220, 180), 3))
+            {
+                g.DrawRoundedRectangle(borderPen, titleRect, 25);
+            }
+            
+            using (Font titleFont = new Font("Comic Sans MS", 26, FontStyle.Bold))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                g.DrawString("Sign up or log in to play!", subFont, new SolidBrush(Color.FromArgb(220, 255, 220, 255)), new Rectangle(75, 80, 400, 30), sf);
+                CrushItStyleHelper.DrawOutlinedText(g, "JOIN THE FUN", titleFont, titleRect, Color.White, Color.FromArgb(200, 100, 30), 2, sf);
+            }
+            
+            // Enhanced subtitle
+            using (Font subFont = new Font("Comic Sans MS", 13, FontStyle.Italic))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            using (SolidBrush subBrush = new SolidBrush(Color.FromArgb(230, 255, 230, 255)))
+            {
+                g.DrawString("✨ Sign up or log in to play! ✨", subFont, subBrush, subtitleRect, sf);
             }
         }
 
         private void DrawInputPanel(Graphics g)
         {
-            Rectangle panelRect = new Rectangle(50, 130, 450, 380);
-            CrushItStyleHelper.DrawPanel(g, panelRect, Color.FromArgb(255, 150, 110, 200), Color.FromArgb(255, 110, 70, 170), Color.FromArgb(255, 90, 60, 140));
-
-            using (Font labelFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
+            // Enhanced panel with better gradient and shadow
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(120, 0, 0, 0)))
             {
-                g.DrawString("USERNAME", labelFont, new SolidBrush(Color.FromArgb(255, 200, 150, 255)), usernameRect.X, usernameRect.Y - 22);
+                Rectangle shadowRect = new Rectangle(panelRect.X + 6, panelRect.Y + 6, panelRect.Width, panelRect.Height);
+                g.FillRoundedRectangle(shadow, shadowRect, 20);
             }
 
-            DrawInputField(g, usernameRect, usernameInput, isUsernameFocused, "Choose a username...");
-
-            using (Font labelFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
+            using (LinearGradientBrush panelGradient = new LinearGradientBrush(
+                panelRect, 
+                Color.FromArgb(255, 160, 120, 220), 
+                Color.FromArgb(255, 120, 80, 190), 
+                LinearGradientMode.Vertical))
             {
-                g.DrawString("EMAIL ADDRESS", labelFont, new SolidBrush(Color.FromArgb(255, 200, 150, 255)), emailRect.X, emailRect.Y - 22);
+                g.FillRoundedRectangle(panelGradient, panelRect, 20);
+            }
+            
+            // Glassmorphism effect
+            using (LinearGradientBrush glassBrush = new LinearGradientBrush(
+                panelRect, 
+                Color.FromArgb(40, 255, 255, 255), 
+                Color.FromArgb(20, 255, 255, 255), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(glassBrush, panelRect, 20);
+            }
+            
+            // Inner highlight
+            Rectangle innerRect = new Rectangle(panelRect.X + 4, panelRect.Y + 4, panelRect.Width - 8, panelRect.Height - 8);
+            using (SolidBrush highlight = new SolidBrush(Color.FromArgb(80, 255, 255, 255)))
+            {
+                Rectangle highlightRect = new Rectangle(innerRect.X, innerRect.Y, innerRect.Width, 8);
+                g.FillRoundedRectangle(highlight, highlightRect, 16);
+            }
+            
+            // Border
+            using (Pen borderPen = new Pen(Color.FromArgb(255, 100, 60, 160), 4))
+            {
+                g.DrawRoundedRectangle(borderPen, panelRect, 20);
             }
 
-            DrawInputField(g, emailRect, emailInput, isEmailFocused, "Enter your email...");
+            // Username field
+            DrawFloatingLabel(g, "USERNAME", usernameRect, usernameFocusAlpha, usernameLabelY, usernameInput);
+            DrawInputField(g, usernameRect, usernameInput, isUsernameFocused, usernameFocusAlpha, "Choose a username...");
 
-            using (Font labelFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
-            {
-                g.DrawString("PASSWORD", labelFont, new SolidBrush(Color.FromArgb(255, 200, 150, 255)), passwordRect.X, passwordRect.Y - 22);
-            }
+            // Email field
+            DrawFloatingLabel(g, "EMAIL ADDRESS", emailRect, emailFocusAlpha, emailLabelY, emailInput);
+            DrawInputField(g, emailRect, emailInput, isEmailFocused, emailFocusAlpha, "Enter your email...");
 
+            // Password field
+            DrawFloatingLabel(g, "PASSWORD", passwordRect, passwordFocusAlpha, passwordLabelY, passwordInput);
             string passwordDisplay = showPassword ? passwordInput : new string('●', passwordInput.Length);
-            DrawInputField(g, passwordRect, passwordDisplay, isPasswordFocused, "Enter your password...");
+            DrawInputField(g, passwordRect, passwordDisplay, isPasswordFocused, passwordFocusAlpha, "Enter your password...");
 
             DrawPasswordToggle(g);
-
             DrawPasswordStrength(g);
-
-            if (!string.IsNullOrEmpty(statusMessage))
-            {
-                using (Font statusFont = new Font("Comic Sans MS", 10, FontStyle.Bold))
-                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                {
-                    Rectangle statusRect = new Rectangle(panelRect.X, panelRect.Y + 300, panelRect.Width, 25);
-                    g.DrawString(statusMessage, statusFont, new SolidBrush(statusColor), statusRect, sf);
-                }
-            }
+            DrawPasswordRequirements(g);
 
             DrawButton(g);
+            
+            // Loading spinner
+            if (isProcessing)
+            {
+                DrawLoadingSpinner(g);
+            }
+
+            // Status message (drawn after button to appear on top)
+            if (!string.IsNullOrEmpty(statusMessage))
+            {
+                using (Font statusFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
+                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                {
+                    Rectangle statusRect = new Rectangle(panelRect.X, panelRect.Y + 310, panelRect.Width, 30);
+                    using (SolidBrush statusBrush = new SolidBrush(statusColor))
+                    {
+                        g.DrawString(statusMessage, statusFont, statusBrush, statusRect, sf);
+                    }
+                }
+            }
         }
 
-        private void DrawInputField(Graphics g, Rectangle rect, string text, bool isFocused, string placeholder)
+        private void DrawFloatingLabel(Graphics g, string label, Rectangle fieldRect, float focusAlpha, float labelY, string inputText)
         {
-            Color bgColor = isFocused ? Color.FromArgb(255, 255, 230, 150) : Color.FromArgb(255, 255, 255, 255);
-            Color borderColor = isFocused ? Color.FromArgb(255, 255, 180, 60) : Color.FromArgb(255, 200, 150, 255);
+            bool isFloating = (focusAlpha > 0.5f) || !string.IsNullOrEmpty(inputText);
+            float fontSize = isFloating ? 9f : 11f;
+            Color labelColor = isFloating ? 
+                Color.FromArgb(255, 100, 180, 255) : 
+                Color.FromArgb(
+                    (int)(150 + 105 * focusAlpha), 
+                    (int)(180 + 75 * focusAlpha), 
+                    (int)(210 + 45 * focusAlpha)
+                );
+            
+            using (Font labelFont = new Font("Comic Sans MS", fontSize, FontStyle.Bold))
+            using (SolidBrush labelBrush = new SolidBrush(labelColor))
+            {
+                g.DrawString(label, labelFont, labelBrush, fieldRect.X, labelY);
+            }
+            
+            // Animated underline when focused
+            if (focusAlpha > 0.01f)
+            {
+                int underlineWidth = (int)(fieldRect.Width * focusAlpha);
+                using (Pen underlinePen = new Pen(Color.FromArgb((int)(255 * focusAlpha), 255, 200, 100), 2))
+                {
+                    g.DrawLine(underlinePen, fieldRect.X, (int)labelY + 15, fieldRect.X + underlineWidth, (int)labelY + 15);
+                }
+            }
+        }
+
+        private void DrawInputField(Graphics g, Rectangle rect, string text, bool isFocused, float focusAlpha, string placeholder)
+        {
+            // Animated background color
+            int baseR = 255, baseG = 255, baseB = 255;
+            int focusR = 255, focusG = 240, focusB = 180;
+            
+            int r = (int)(baseR + (focusR - baseR) * focusAlpha);
+            int green = (int)(baseG + (focusG - baseG) * focusAlpha);
+            int b = (int)(baseB + (focusB - baseB) * focusAlpha);
+            
+            Color bgColor = Color.FromArgb(255, r, green, b);
+            
+            // Animated border color
+            int borderR = 200, borderG = 150, borderB = 255;
+            int focusBorderR = 255, focusBorderG = 200, focusBorderB = 100;
+            
+            int br = (int)(borderR + (focusBorderR - borderR) * focusAlpha);
+            int borderGreen = (int)(borderG + (focusBorderG - borderG) * focusAlpha);
+            int bb = (int)(borderB + (focusBorderB - borderB) * focusAlpha);
+            
+            Color borderColor = Color.FromArgb(255, br, borderGreen, bb);
+            int borderWidth = 3 + (int)(2 * focusAlpha);
 
             using (LinearGradientBrush bgBrush = new LinearGradientBrush(
                 rect, bgColor, Color.FromArgb(200, bgColor.R, bgColor.G, bgColor.B), LinearGradientMode.Vertical))
             {
-                g.FillRoundedRectangle(bgBrush, rect, 12);
+                g.FillRoundedRectangle(bgBrush, rect, 14);
             }
 
-            using (Pen borderPen = new Pen(borderColor, 3))
+            using (Pen borderPen = new Pen(borderColor, borderWidth))
             {
-                g.DrawRoundedRectangle(borderPen, rect, 12);
+                g.DrawRoundedRectangle(borderPen, rect, 14);
+            }
+            
+            // Subtle glow when focused
+            if (focusAlpha > 0.01f)
+            {
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb((int)(30 * focusAlpha), 255, 220, 150)))
+                {
+                    Rectangle glowRect = new Rectangle(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
+                    g.FillRoundedRectangle(glowBrush, glowRect, 16);
+                }
             }
 
             string displayText = string.IsNullOrEmpty(text) ? placeholder : text;
             Color textColor = string.IsNullOrEmpty(text) ? Color.FromArgb(180, 150, 150, 150) : Color.FromArgb(255, 60, 40, 80);
 
-            using (Font inputFont = new Font("Comic Sans MS", 13, FontStyle.Bold))
+            using (Font inputFont = new Font("Comic Sans MS", 14, FontStyle.Bold))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
             {
-                g.DrawString(displayText, inputFont, new SolidBrush(textColor), new Rectangle(rect.X + 15, rect.Y, rect.Width - 30, rect.Height), sf);
+                g.DrawString(displayText, inputFont, new SolidBrush(textColor), new Rectangle(rect.X + 18, rect.Y, rect.Width - 36, rect.Height), sf);
             }
 
             if (isFocused)
             {
-                int cursorX = rect.X + 15 + (int)g.MeasureString(text, new Font("Comic Sans MS", 13, FontStyle.Bold)).Width;
-                if (cursorX < rect.Right - 15)
+                int cursorX = rect.X + 18 + (int)g.MeasureString(text, new Font("Comic Sans MS", 14, FontStyle.Bold)).Width;
+                if (cursorX < rect.Right - 18)
                 {
-                    using (Pen cursorPen = new Pen(Color.FromArgb(255, 60, 40, 80), 2))
+                    // Animated cursor
+                    int cursorAlpha = (int)(200 + 55 * Math.Sin(pulsePhase * Math.PI / 8));
+                    using (Pen cursorPen = new Pen(Color.FromArgb(cursorAlpha, 60, 40, 80), 2))
                     {
-                        g.DrawLine(cursorPen, cursorX, rect.Y + 10, cursorX, rect.Bottom - 10);
+                        g.DrawLine(cursorPen, cursorX, rect.Y + 12, cursorX, rect.Bottom - 12);
                     }
                 }
             }
@@ -593,35 +904,166 @@ namespace CrushIt.UI
 
         private void DrawButton(Graphics g)
         {
-            Color buttonColor = isButtonHovered ? Color.FromArgb(255, 255, 100, 150) : Color.FromArgb(255, 255, 60, 120);
-            Color buttonColor2 = isButtonHovered ? Color.FromArgb(255, 255, 60, 100) : Color.FromArgb(255, 255, 30, 80);
+            // Calculate scaled rectangle with 3D press effect
+            int scaledWidth = (int)(buttonRect.Width * buttonScale);
+            int scaledHeight = (int)(buttonRect.Height * buttonScale);
+            int scaledX = buttonRect.X + (buttonRect.Width - scaledWidth) / 2;
+            int scaledY = buttonRect.Y + (buttonRect.Height - scaledHeight) / 2 + (int)buttonPressDepth;
+            Rectangle scaledRect = new Rectangle(scaledX, scaledY, scaledWidth, scaledHeight);
+            
+            // 3D shadow for press effect
+            if (buttonPressDepth > 0.5f)
+            {
+                using (SolidBrush shadowBrush = new SolidBrush(Color.FromArgb(100, 0, 0, 0)))
+                {
+                    Rectangle shadowRect = new Rectangle(scaledRect.X, scaledRect.Y + (int)buttonPressDepth, scaledRect.Width, scaledRect.Height);
+                    g.FillRoundedRectangle(shadowBrush, shadowRect, 22);
+                }
+            }
+            
+            // Enhanced button gradient
+            Color buttonColor = isButtonHovered ? Color.FromArgb(255, 255, 120, 180) : Color.FromArgb(255, 255, 80, 150);
+            Color buttonColor2 = isButtonHovered ? Color.FromArgb(255, 255, 80, 140) : Color.FromArgb(255, 255, 50, 110);
 
             using (LinearGradientBrush buttonBrush = new LinearGradientBrush(
-                buttonRect, buttonColor, buttonColor2, LinearGradientMode.Vertical))
+                scaledRect, buttonColor, buttonColor2, LinearGradientMode.Vertical))
             {
-                g.FillRoundedRectangle(buttonBrush, buttonRect, 18);
+                g.FillRoundedRectangle(buttonBrush, scaledRect, 22);
+            }
+            
+            // Glow effect on hover
+            if (isButtonHovered)
+            {
+                int glowPulse = (int)(15 * Math.Sin(pulsePhase * Math.PI / 30));
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(40 + glowPulse, 255, 180, 220)))
+                {
+                    Rectangle glowRect = new Rectangle(scaledRect.X - 3, scaledRect.Y - 3, scaledRect.Width + 6, scaledRect.Height + 6);
+                    g.FillRoundedRectangle(glowBrush, glowRect, 25);
+                }
             }
 
-            using (Pen buttonBorder = new Pen(Color.FromArgb(255, 255, 200, 220), 3))
+            using (Pen buttonBorder = new Pen(Color.FromArgb(255, 255, 220, 240), 4))
             {
-                g.DrawRoundedRectangle(buttonBorder, buttonRect, 18);
+                g.DrawRoundedRectangle(buttonBorder, scaledRect, 22);
+            }
+            
+            // Inner highlight
+            using (SolidBrush highlight = new SolidBrush(Color.FromArgb(60, 255, 255, 255)))
+            {
+                Rectangle highlightRect = new Rectangle(scaledRect.X + 4, scaledRect.Y + 4, scaledRect.Width - 8, 8);
+                g.FillRoundedRectangle(highlight, highlightRect, 18);
             }
 
-            using (Font buttonFont = new Font("Comic Sans MS", 18, FontStyle.Bold))
+            // Button text with press offset
+            Rectangle textRect = scaledRect;
+            if (buttonPressDepth > 0.5f)
+            {
+                textRect = new Rectangle(scaledRect.X, scaledRect.Y + (int)(buttonPressDepth * 0.5f), scaledRect.Width, scaledRect.Height);
+            }
+            
+            using (Font buttonFont = new Font("Comic Sans MS", 20, FontStyle.Bold))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
-                CrushItStyleHelper.DrawOutlinedText(g, "CRUSH IT!", buttonFont, buttonRect, Color.White, Color.FromArgb(180, 120, 40, 80), 2, sf);
+                string buttonText = isProcessing ? "" : "CRUSH IT!";
+                CrushItStyleHelper.DrawOutlinedText(g, buttonText, buttonFont, textRect, Color.White, Color.FromArgb(200, 100, 50, 100), 2, sf);
             }
         }
 
         private void DrawPasswordToggle(Graphics g)
         {
-            Color toggleColor = isToggleHovered ? Color.FromArgb(255, 150, 220, 150) : (showPassword ? Color.FromArgb(255, 100, 200, 100) : Color.FromArgb(255, 200, 200, 200));
+            // Enhanced toggle with background
+            Color bgColor = isToggleHovered ? Color.FromArgb(255, 180, 230, 180) : (showPassword ? Color.FromArgb(255, 130, 210, 130) : Color.FromArgb(255, 220, 220, 220));
+            
+            using (SolidBrush bgBrush = new SolidBrush(bgColor))
+            {
+                g.FillRoundedRectangle(bgBrush, togglePasswordRect, 8);
+            }
+            
+            using (Pen borderPen = new Pen(Color.FromArgb(255, 150, 150, 150), 2))
+            {
+                g.DrawRoundedRectangle(borderPen, togglePasswordRect, 8);
+            }
+            
+            Color toggleColor = isToggleHovered ? Color.FromArgb(255, 80, 160, 80) : (showPassword ? Color.FromArgb(255, 60, 140, 60) : Color.FromArgb(255, 120, 120, 120));
             using (SolidBrush toggleBrush = new SolidBrush(toggleColor))
-            using (Font toggleFont = new Font("Arial", 14, FontStyle.Bold))
+            using (Font toggleFont = new Font("Segoe UI Emoji", 16, FontStyle.Bold))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
                 g.DrawString(showPassword ? "👁" : "👁‍🗨", toggleFont, toggleBrush, togglePasswordRect, sf);
+            }
+        }
+
+        private void DrawPasswordRequirements(Graphics g)
+        {
+            if (string.IsNullOrEmpty(passwordInput) || passwordFocusAlpha < 0.1f)
+                return;
+
+            var requirements = new[]
+            {
+                ("8+ chars", passwordInput.Length >= 8),
+                ("Upper", passwordInput.Any(char.IsUpper)),
+                ("Lower", passwordInput.Any(char.IsLower)),
+                ("Number", passwordInput.Any(char.IsDigit)),
+                ("Special", passwordInput.Any(c => !char.IsLetterOrDigit(c)))
+            };
+
+            float startY = passwordRect.Bottom + 45;
+            float startX = passwordRect.X;
+            float itemWidth = passwordRect.Width / 5f;
+
+            using (Font reqFont = new Font("Comic Sans MS", 8, FontStyle.Bold))
+            {
+                for (int i = 0; i < requirements.Length; i++)
+                {
+                    bool met = requirements[i].Item2;
+                    Color reqColor = met ? Color.FromArgb(255, 100, 255, 100) : Color.FromArgb(255, 255, 150, 150);
+                    
+                    using (SolidBrush reqBrush = new SolidBrush(reqColor))
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                    {
+                        RectangleF reqRect = new RectangleF(startX + i * itemWidth, startY, itemWidth, 20);
+                        g.DrawString(requirements[i].Item1, reqFont, reqBrush, reqRect, sf);
+                    }
+                }
+            }
+        }
+        
+        private void DrawLoadingSpinner(Graphics g)
+        {
+            Rectangle spinnerRect = new Rectangle(buttonRect.X + buttonRect.Width / 2 - 15, buttonRect.Y + buttonRect.Height / 2 - 15, 30, 30);
+            
+            using (Pen spinnerPen = new Pen(Color.FromArgb(255, 255, 255, 255), 3))
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    float angle = loadingRotation + (i * (float)Math.PI / 4);
+                    float alpha = 255 - (i * 30);
+                    spinnerPen.Color = Color.FromArgb((int)alpha, 255, 255, 255);
+                    
+                    float x1 = spinnerRect.X + spinnerRect.Width / 2 + (float)(10 * Math.Cos(angle));
+                    float y1 = spinnerRect.Y + spinnerRect.Height / 2 + (float)(10 * Math.Sin(angle));
+                    float x2 = spinnerRect.X + spinnerRect.Width / 2 + (float)(15 * Math.Cos(angle));
+                    float y2 = spinnerRect.Y + spinnerRect.Height / 2 + (float)(15 * Math.Sin(angle));
+                    
+                    g.DrawLine(spinnerPen, x1, y1, x2, y2);
+                }
+            }
+        }
+        
+        private void DrawConfetti(Graphics g)
+        {
+            foreach (var confetti in confettiParticles)
+            {
+                GraphicsState gstate = g.Save();
+                g.TranslateTransform(confetti.X, confetti.Y);
+                g.RotateTransform(confetti.Rotation * 180 / (float)Math.PI);
+                
+                using (SolidBrush confettiBrush = new SolidBrush(Color.FromArgb((int)(255 * confetti.Alpha), confetti.Color)))
+                {
+                    g.FillRectangle(confettiBrush, -confetti.Size / 2, -confetti.Size / 2, confetti.Size, confetti.Size);
+                }
+                
+                g.Restore(gstate);
             }
         }
 
@@ -659,24 +1101,42 @@ namespace CrushIt.UI
                     break;
             }
 
-            Rectangle strengthBarRect = new Rectangle(passwordRect.X, passwordRect.Bottom + 8, passwordRect.Width, 8);
+            Rectangle strengthBarRect = new Rectangle(passwordRect.X, passwordRect.Bottom + 10, passwordRect.Width, 8);
             int filledWidth = (int)(strengthBarRect.Width * ((strength + 1) / 5.0));
 
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(255, 200, 200, 200)))
+            // Background bar with rounded corners
+            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(255, 220, 220, 220)))
             {
-                g.FillRoundedRectangle(bgBrush, strengthBarRect, 4);
+                g.FillRoundedRectangle(bgBrush, strengthBarRect, 5);
             }
-
-            using (SolidBrush fillBrush = new SolidBrush(strengthColor))
+            
+            // Animated fill bar
+            using (LinearGradientBrush fillBrush = new LinearGradientBrush(
+                strengthBarRect, 
+                strengthColor, 
+                Color.FromArgb(200, strengthColor.R, strengthColor.G, strengthColor.B), 
+                LinearGradientMode.Vertical))
             {
                 Rectangle filledRect = new Rectangle(strengthBarRect.X, strengthBarRect.Y, filledWidth, strengthBarRect.Height);
-                g.FillRoundedRectangle(fillBrush, filledRect, 4);
+                g.FillRoundedRectangle(fillBrush, filledRect, 5);
+            }
+            
+            // Glow effect on the filled portion
+            if (filledWidth > 0)
+            {
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(30, strengthColor)))
+                {
+                    Rectangle glowRect = new Rectangle(strengthBarRect.X, strengthBarRect.Y - 2, filledWidth, strengthBarRect.Height + 4);
+                    g.FillRoundedRectangle(glowBrush, glowRect, 7);
+                }
             }
 
-            using (Font strengthFont = new Font("Comic Sans MS", 9, FontStyle.Bold))
+            // Enhanced strength text
+            using (Font strengthFont = new Font("Comic Sans MS", 10, FontStyle.Bold))
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Far, LineAlignment = StringAlignment.Center })
+            using (SolidBrush textBrush = new SolidBrush(strengthColor))
             {
-                g.DrawString(strengthText, strengthFont, new SolidBrush(strengthColor), new Rectangle(strengthBarRect.X, strengthBarRect.Bottom + 2, strengthBarRect.Width, 15), sf);
+                g.DrawString(strengthText, strengthFont, textBrush, new Rectangle(strengthBarRect.X, strengthBarRect.Bottom + 4, strengthBarRect.Width, 18), sf);
             }
         }
 

@@ -39,6 +39,13 @@ namespace CrushIt.UI
         private int pulsePhase = 0;
         private readonly List<StyleParticle> backgroundParticles = new List<StyleParticle>();
         private readonly Random bgRand = new Random();
+        private float buttonScale = 1f;
+        private float buttonPressDepth = 0f;
+        private bool isButtonHovered = false;
+        private Rectangle skipButtonRect;
+        private List<ConfettiParticle> confettiParticles = new List<ConfettiParticle>();
+        private bool showSuccessAnimation = false;
+        private int successAnimationPhase = 0;
 
         private readonly IMongoCollection<UserAccount> usersCollection;
 
@@ -79,7 +86,7 @@ namespace CrushIt.UI
         private void InitializeComponent()
         {
             this.Text = "Crush It! - Tutorial Level";
-            this.Size = new Size(900, 650);
+            this.Size = new Size(900, 680);
             this.StartPosition = FormStartPosition.CenterScreen;
             this.FormBorderStyle = FormBorderStyle.FixedSingle;
             this.MaximizeBox = false;
@@ -93,6 +100,55 @@ namespace CrushIt.UI
                     this.Close();
                 }
             };
+            
+            this.MouseMove += TutorialFrame_MouseMove;
+            this.MouseClick += TutorialFrame_MouseClick;
+            this.MouseLeave += (s, e) => { isButtonHovered = false; this.Cursor = Cursors.Default; };
+            
+            // Initialize skip button rectangle
+            skipButtonRect = new Rectangle(750, 15, 120, 40);
+        }
+        
+        private void TutorialFrame_MouseMove(object? sender, MouseEventArgs e)
+        {
+            bool wasButtonHovered = isButtonHovered;
+            isButtonHovered = skipButtonRect.Contains(e.Location);
+            this.Cursor = isButtonHovered ? Cursors.Hand : Cursors.Default;
+            
+            if (wasButtonHovered != isButtonHovered)
+                this.Invalidate();
+        }
+        
+        private void TutorialFrame_MouseClick(object? sender, MouseEventArgs e)
+        {
+            if (skipButtonRect.Contains(e.Location))
+            {
+                SkipTutorial();
+            }
+        }
+        
+        private void SkipTutorial()
+        {
+            try
+            {
+                var filter = Builders<UserAccount>.Filter.Eq(u => u.Email, currentUser.Email);
+                var update = Builders<UserAccount>.Update
+                    .Set(u => u.HasCompletedTutorial, true)
+                    .Inc(u => u.Gold, sessionGold);
+                usersCollection.UpdateOneAsync(filter, update);
+
+                currentUser.Gold += sessionGold;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to update tutorial status: {ex.Message}");
+            }
+
+            MainFrame main = new MainFrame(currentUser, database);
+            main.Show();
+
+            this.Hide();
+            this.Dispose();
         }
 
         private void GenerateBoardWithoutInitialMatches()
@@ -333,6 +389,7 @@ namespace CrushIt.UI
                 if (GameData.TotalScore >= TargetPointGoal)
                 {
                     levelCompleted = true;
+                    completionAnimationPhase = 0;
                     this.Invalidate();
 
                     try
@@ -516,10 +573,63 @@ namespace CrushIt.UI
             if (levelCompleted)
             {
                 completionAnimationPhase = (completionAnimationPhase + 1) % 120;
+                
+                // Trigger confetti on completion
+                if (completionAnimationPhase == 1 && !showSuccessAnimation)
+                {
+                    showSuccessAnimation = true;
+                    successAnimationPhase = 0;
+                    confettiParticles.Clear();
+                    
+                    for (int i = 0; i < 50; i++)
+                    {
+                        confettiParticles.Add(new ConfettiParticle
+                        {
+                            X = this.ClientSize.Width / 2,
+                            Y = this.ClientSize.Height / 2,
+                            SpeedX = (float)(bgRand.NextDouble() * 10 - 5),
+                            SpeedY = (float)(bgRand.NextDouble() * -15 - 5),
+                            Rotation = 0,
+                            RotationSpeed = (float)(bgRand.NextDouble() * 0.3 - 0.15),
+                            Color = CrushItStyleHelper.ParticleColors[bgRand.Next(CrushItStyleHelper.ParticleColors.Length)],
+                            Size = bgRand.Next(6, 12),
+                            Alpha = 1f
+                        });
+                    }
+                }
+            }
+            
+            // Update confetti
+            if (showSuccessAnimation)
+            {
+                successAnimationPhase++;
+                foreach (var confetti in confettiParticles)
+                {
+                    confetti.X += confetti.SpeedX;
+                    confetti.Y += confetti.SpeedY;
+                    confetti.SpeedY += 0.15f; // Gravity
+                    confetti.Rotation += confetti.RotationSpeed;
+                    confetti.Alpha -= 0.008f;
+                }
+                
+                confettiParticles.RemoveAll(c => c.Alpha <= 0 || c.Y > this.ClientSize.Height);
+                
+                if (successAnimationPhase > 180)
+                {
+                    showSuccessAnimation = false;
+                    confettiParticles.Clear();
+                }
             }
 
             pulsePhase++;
             CrushItStyleHelper.UpdateParticles(backgroundParticles, this.ClientSize.Width, 60, this.ClientSize.Height - 120);
+            
+            // Animate button
+            float targetScale = isButtonHovered ? 1.05f : 1f;
+            buttonScale += (targetScale - buttonScale) * 0.1f;
+            
+            float targetDepth = isButtonHovered ? 3f : 0f;
+            buttonPressDepth += (targetDepth - buttonPressDepth) * 0.2f;
 
             this.Invalidate();
         }
@@ -528,74 +638,346 @@ namespace CrushIt.UI
         {
             base.OnPaint(e);
             Graphics g = e.Graphics;
+            CrushItStyleHelper.SetupQualityRendering(g);
 
-            g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
-            g.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.Half;
+            // Use cartoon background from CrushItStyleHelper
+            CrushItStyleHelper.DrawCartoonBackground(g, this.ClientRectangle, pulsePhase);
+            CrushItStyleHelper.DrawBackgroundParticles(g, backgroundParticles);
+            
+            // Draw enhanced title banner
+            DrawEnhancedTitleBanner(g);
+            
+            // Draw enhanced score display
+            DrawEnhancedScoreDisplay(g);
+            
+            // Draw skip button
+            DrawSkipButton(g);
+            
+            // Draw game board with glassmorphism effect
+            DrawGameBoard(g);
 
-            using (SolidBrush bgBrush = new SolidBrush(Color.FromArgb(20, 12, 28)))
+            if (levelCompleted)
             {
-                g.FillRectangle(bgBrush, this.ClientRectangle);
-            }
-
-            Rectangle banner = new Rectangle(50, 15, 436, 60);
-
-            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(10, 5, 15)))
-                g.FillRectangle(shadow, new Rectangle(banner.X + 6, banner.Y + 6, banner.Width, banner.Height));
-
-            using (SolidBrush bBorder = new SolidBrush(Color.Black))
-                g.FillRectangle(bBorder, banner);
-
-            Rectangle bInner = new Rectangle(banner.X + 4, banner.Y + 4, banner.Width - 8, banner.Height - 8);
-            using (SolidBrush bFill = new SolidBrush(Color.FromArgb(220, 50, 100)))
-                g.FillRectangle(bFill, bInner);
-
-            using (SolidBrush bHi = new SolidBrush(Color.FromArgb(255, 130, 170)))
-            {
-                g.FillRectangle(bHi, bInner.X, bInner.Y, bInner.Width, 4);
-                g.FillRectangle(bHi, bInner.X, bInner.Y, 4, bInner.Height);
-            }
-
-            using (Font titleFont = new Font("Courier New", 18, FontStyle.Bold))
-            {
-                using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                // Enhanced overlay with glassmorphism
+                using (SolidBrush overlay = new SolidBrush(Color.FromArgb(180, 20, 12, 35)))
                 {
-                    g.DrawString("TUTORIAL LEVEL", titleFont, Brushes.Black, new RectangleF(banner.X + 3, banner.Y + 3, banner.Width, banner.Height), sf);
-                    g.DrawString("TUTORIAL LEVEL", titleFont, Brushes.Yellow, new RectangleF(banner.X, banner.Y, banner.Width, banner.Height), sf);
+                    g.FillRectangle(overlay, this.ClientRectangle);
+                }
+
+                int bannerWidth = 500;
+                int bannerHeight = 100;
+                int bannerX = (this.ClientSize.Width - bannerWidth) / 2;
+                Rectangle compBanner = new Rectangle(bannerX, 240, bannerWidth, bannerHeight);
+                int cornerRadius = 25;
+
+                // Enhanced glow effect
+                int glowPulse = (int)(20 * Math.Sin(completionAnimationPhase * Math.PI / 40));
+                using (SolidBrush glow = new SolidBrush(Color.FromArgb(80 + glowPulse, 100, 255, 150)))
+                {
+                    Rectangle glowRect = new Rectangle(compBanner.X - 8, compBanner.Y - 8, compBanner.Width + 16, compBanner.Height + 16);
+                    g.FillRoundedRectangle(glow, glowRect, cornerRadius + 8);
+                }
+
+                // Shadow
+                using (SolidBrush cShadow = new SolidBrush(Color.FromArgb(120, 0, 0, 0)))
+                {
+                    Rectangle shadowRect = new Rectangle(compBanner.X + 10, compBanner.Y + 10, compBanner.Width, compBanner.Height);
+                    g.FillRoundedRectangle(cShadow, shadowRect, cornerRadius);
+                }
+
+                // Main banner with gradient
+                Rectangle cInner = new Rectangle(compBanner.X + 6, compBanner.Y + 6, compBanner.Width - 12, compBanner.Height - 12);
+                using (LinearGradientBrush cFill = new LinearGradientBrush(cInner, Color.FromArgb(255, 120, 80, 200), Color.FromArgb(255, 80, 50, 160), LinearGradientMode.Vertical))
+                {
+                    g.FillRoundedRectangle(cFill, cInner, cornerRadius - 4);
+                }
+                
+                // Glassmorphism effect
+                using (LinearGradientBrush glassBrush = new LinearGradientBrush(
+                    cInner, 
+                    Color.FromArgb(50, 255, 255, 255), 
+                    Color.FromArgb(25, 255, 255, 255), 
+                    LinearGradientMode.Vertical))
+                {
+                    g.FillRoundedRectangle(glassBrush, cInner, cornerRadius - 4);
+                }
+
+                // Highlight
+                Rectangle highlightRect = new Rectangle(cInner.X, cInner.Y, cInner.Width, cInner.Height / 2);
+                using (LinearGradientBrush cHi = new LinearGradientBrush(highlightRect, Color.FromArgb(150, 255, 200, 230), Color.FromArgb(100, 200, 150, 200), LinearGradientMode.Vertical))
+                {
+                    g.FillRoundedRectangle(cHi, new Rectangle(cInner.X, cInner.Y, cInner.Width, cInner.Height / 2), cornerRadius - 4);
+                }
+                
+                // Border
+                using (Pen borderPen = new Pen(Color.FromArgb(255, 255, 220, 240), 4))
+                {
+                    g.DrawRoundedRectangle(borderPen, cInner, cornerRadius - 4);
+                }
+
+                // Animated stars
+                DrawStar(g, compBanner.X + 35, compBanner.Y + 50, 15, Color.FromArgb(255, 255, 215, 0), completionAnimationPhase);
+                DrawStar(g, compBanner.Right - 35, compBanner.Y + 50, 15, Color.FromArgb(255, 255, 215, 0), completionAnimationPhase + 30);
+
+                int jumpOffset = (int)(8 * Math.Sin(completionAnimationPhase * Math.PI / 30));
+
+                using (Font compFont = new Font("Comic Sans MS", 28, FontStyle.Bold))
+                {
+                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                    {
+                        string levelText = "LEVEL";
+                        string completedText = "COMPLETED!";
+
+                        float levelY = compBanner.Y + 25 + jumpOffset;
+                        float completedY = compBanner.Y + 65 + jumpOffset;
+
+                        CrushItStyleHelper.DrawOutlinedText(g, levelText, compFont, new Rectangle(compBanner.X, (int)levelY, compBanner.Width, 40), Color.White, Color.FromArgb(200, 100, 50, 100), 2, sf);
+                        CrushItStyleHelper.DrawOutlinedText(g, completedText, compFont, new Rectangle(compBanner.X, (int)completedY, compBanner.Width, 40), Color.FromArgb(255, 255, 215, 0), Color.FromArgb(200, 100, 50, 100), 2, sf);
+                    }
                 }
             }
 
-            using (Font subFont = new Font("Courier New", 11, FontStyle.Bold))
+            using (SolidBrush framePen = new SolidBrush(Color.FromArgb(220, 50, 100)))
             {
-                string goalText = $"SCORE: {Math.Min(GameData.TotalScore, TargetPointGoal)} / {TargetPointGoal} PTS";
-                g.DrawString(goalText, subFont, Brushes.Black, new RectangleF(2, 87, 550, 30), new StringFormat { Alignment = StringAlignment.Center });
-                g.DrawString(goalText, subFont, Brushes.Cyan, new RectangleF(0, 85, 550, 30), new StringFormat { Alignment = StringAlignment.Center });
-
+                g.FillRectangle(framePen, 0, 0, this.ClientSize.Width, 6);
+                g.FillRectangle(framePen, 0, 0, 6, this.ClientSize.Height);
+                g.FillRectangle(framePen, 0, this.ClientSize.Height - 6, this.ClientSize.Width, 6);
+                g.FillRectangle(framePen, this.ClientSize.Width - 6, 0, 6, this.ClientSize.Height);
+            }
+            
+            // Draw confetti on top
+            if (showSuccessAnimation)
+            {
+                DrawConfetti(g);
+            }
+        }
+        
+        private void DrawEnhancedTitleBanner(Graphics g)
+        {
+            Rectangle banner = new Rectangle(50, 15, 500, 60);
+            
+            // Glassmorphism effect
+            using (LinearGradientBrush glassBrush = new LinearGradientBrush(
+                banner, 
+                Color.FromArgb(60, 255, 255, 255), 
+                Color.FromArgb(30, 255, 255, 255), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(glassBrush, banner, 25);
+            }
+            
+            // Glow effect
+            int glowPulse = (int)(10 * Math.Sin(pulsePhase * Math.PI / 40));
+            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(30 + glowPulse, 255, 200, 100)))
+            {
+                Rectangle glowRect = new Rectangle(banner.X - 2, banner.Y - 2, banner.Width + 4, banner.Height + 4);
+                g.FillRoundedRectangle(glowBrush, glowRect, 27);
+            }
+            
+            // Border
+            using (Pen borderPen = new Pen(Color.FromArgb(255, 255, 220, 180), 3))
+            {
+                g.DrawRoundedRectangle(borderPen, banner, 25);
+            }
+            
+            using (Font titleFont = new Font("Comic Sans MS", 24, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                CrushItStyleHelper.DrawOutlinedText(g, "TUTORIAL LEVEL", titleFont, banner, Color.White, Color.FromArgb(200, 100, 30), 2, sf);
+            }
+        }
+        
+        private void DrawEnhancedScoreDisplay(Graphics g)
+        {
+            Rectangle scorePanel = new Rectangle(50, 85, 500, 50);
+            
+            // Glassmorphism panel
+            using (LinearGradientBrush panelGradient = new LinearGradientBrush(
+                scorePanel, 
+                Color.FromArgb(255, 160, 120, 220), 
+                Color.FromArgb(255, 120, 80, 190), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(panelGradient, scorePanel, 15);
+            }
+            
+            using (LinearGradientBrush glassBrush = new LinearGradientBrush(
+                scorePanel, 
+                Color.FromArgb(40, 255, 255, 255), 
+                Color.FromArgb(20, 255, 255, 255), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(glassBrush, scorePanel, 15);
+            }
+            
+            using (Pen borderPen = new Pen(Color.FromArgb(255, 100, 60, 160), 3))
+            {
+                g.DrawRoundedRectangle(borderPen, scorePanel, 15);
+            }
+            
+            using (Font scoreFont = new Font("Comic Sans MS", 14, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                string goalText = $"SCORE: {Math.Min(GameData.TotalScore, TargetPointGoal)} / {TargetPointGoal}";
+                g.DrawString(goalText, scoreFont, new SolidBrush(Color.White), scorePanel, sf);
+            }
+            
+            Rectangle goldPanel = new Rectangle(570, 85, 200, 50);
+            
+            using (LinearGradientBrush goldGradient = new LinearGradientBrush(
+                goldPanel, 
+                Color.FromArgb(255, 255, 215, 50), 
+                Color.FromArgb(255, 255, 180, 30), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(goldGradient, goldPanel, 15);
+            }
+            
+            using (Pen goldBorder = new Pen(Color.FromArgb(255, 255, 220, 180), 3))
+            {
+                g.DrawRoundedRectangle(goldBorder, goldPanel, 15);
+            }
+            
+            using (Font goldFont = new Font("Comic Sans MS", 14, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
                 string goldText = $"GOLD: {sessionGold}";
-                g.DrawString(goldText, subFont, Brushes.Black, new RectangleF(2, 102, 550, 30), new StringFormat { Alignment = StringAlignment.Center });
-                g.DrawString(goldText, subFont, Brushes.Gold, new RectangleF(0, 100, 550, 30), new StringFormat { Alignment = StringAlignment.Center });
+                g.DrawString(goldText, goldFont, new SolidBrush(Color.FromArgb(100, 80, 40)), goldPanel, sf);
+            }
+        }
+        
+        private void DrawSkipButton(Graphics g)
+        {
+            // Calculate scaled rectangle with 3D press effect
+            int scaledWidth = (int)(skipButtonRect.Width * buttonScale);
+            int scaledHeight = (int)(skipButtonRect.Height * buttonScale);
+            int scaledX = skipButtonRect.X + (skipButtonRect.Width - scaledWidth) / 2;
+            int scaledY = skipButtonRect.Y + (skipButtonRect.Height - scaledHeight) / 2 + (int)buttonPressDepth;
+            Rectangle scaledRect = new Rectangle(scaledX, scaledY, scaledWidth, scaledHeight);
+            
+            // 3D shadow for press effect
+            if (buttonPressDepth > 0.5f)
+            {
+                using (SolidBrush shadowBrush = new SolidBrush(Color.FromArgb(100, 0, 0, 0)))
+                {
+                    Rectangle shadowRect = new Rectangle(scaledRect.X, scaledRect.Y + (int)buttonPressDepth, scaledRect.Width, scaledRect.Height);
+                    g.FillRoundedRectangle(shadowBrush, shadowRect, 12);
+                }
+            }
+            
+            // Button gradient
+            Color buttonColor = isButtonHovered ? Color.FromArgb(255, 255, 120, 180) : Color.FromArgb(255, 255, 80, 150);
+            Color buttonColor2 = isButtonHovered ? Color.FromArgb(255, 255, 80, 140) : Color.FromArgb(255, 255, 50, 110);
+
+            using (LinearGradientBrush buttonBrush = new LinearGradientBrush(
+                scaledRect, buttonColor, buttonColor2, LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(buttonBrush, scaledRect, 12);
+            }
+            
+            // Glow effect on hover
+            if (isButtonHovered)
+            {
+                int glowPulse = (int)(15 * Math.Sin(pulsePhase * Math.PI / 30));
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(40 + glowPulse, 255, 180, 220)))
+                {
+                    Rectangle glowRect = new Rectangle(scaledRect.X - 3, scaledRect.Y - 3, scaledRect.Width + 6, scaledRect.Height + 6);
+                    g.FillRoundedRectangle(glowBrush, glowRect, 15);
+                }
             }
 
+            using (Pen buttonBorder = new Pen(Color.FromArgb(255, 255, 220, 240), 3))
+            {
+                g.DrawRoundedRectangle(buttonBorder, scaledRect, 12);
+            }
+            
+            // Inner highlight
+            using (SolidBrush highlight = new SolidBrush(Color.FromArgb(60, 255, 255, 255)))
+            {
+                Rectangle highlightRect = new Rectangle(scaledRect.X + 4, scaledRect.Y + 4, scaledRect.Width - 8, 6);
+                g.FillRoundedRectangle(highlight, highlightRect, 8);
+            }
+
+            // Button text
+            Rectangle textRect = scaledRect;
+            if (buttonPressDepth > 0.5f)
+            {
+                textRect = new Rectangle(scaledRect.X, scaledRect.Y + (int)(buttonPressDepth * 0.5f), scaledRect.Width, scaledRect.Height);
+            }
+            
+            using (Font buttonFont = new Font("Comic Sans MS", 12, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+            {
+                CrushItStyleHelper.DrawOutlinedText(g, "SKIP", buttonFont, textRect, Color.White, Color.FromArgb(200, 100, 50, 100), 2, sf);
+            }
+        }
+        
+        private void DrawGameBoard(Graphics g)
+        {
             int gridTotalWidth = Cols * TileSize;
             int gridTotalHeight = Rows * TileSize;
             Rectangle boardRect = new Rectangle(GridOffsetX - 10, GridOffsetY - 10, gridTotalWidth + 20, gridTotalHeight + 20);
 
-            using (SolidBrush bShadow = new SolidBrush(Color.FromArgb(10, 5, 15)))
-                g.FillRectangle(bShadow, new Rectangle(boardRect.X + 8, boardRect.Y + 8, boardRect.Width, boardRect.Height));
-
-            using (SolidBrush bPen = new SolidBrush(Color.Black))
-                g.FillRectangle(bPen, boardRect);
-
-            Rectangle boardInner = new Rectangle(boardRect.X + 6, boardRect.Y + 6, boardRect.Width - 12, boardRect.Height - 12);
-            using (SolidBrush gridBg = new SolidBrush(Color.FromArgb(35, 20, 48)))
-                g.FillRectangle(gridBg, boardInner);
-
-            using (SolidBrush gHi = new SolidBrush(Color.FromArgb(80, 50, 100)))
+            // Glassmorphism board background
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(120, 0, 0, 0)))
             {
-                g.FillRectangle(gHi, boardInner.X, boardInner.Y, boardInner.Width, 4);
-                g.FillRectangle(gHi, boardInner.X, boardInner.Y, 4, boardInner.Height);
+                Rectangle shadowRect = new Rectangle(boardRect.X + 8, boardRect.Y + 8, boardRect.Width, boardRect.Height);
+                g.FillRoundedRectangle(shadow, shadowRect, 20);
             }
 
+            using (LinearGradientBrush boardGradient = new LinearGradientBrush(
+                boardRect, 
+                Color.FromArgb(255, 70, 50, 100), 
+                Color.FromArgb(255, 50, 35, 80), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(boardGradient, boardRect, 20);
+            }
+            
+            // Glassmorphism effect
+            using (LinearGradientBrush glassBrush = new LinearGradientBrush(
+                boardRect, 
+                Color.FromArgb(40, 255, 255, 255), 
+                Color.FromArgb(20, 255, 255, 255), 
+                LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(glassBrush, boardRect, 20);
+            }
+            
+            // Inner highlight
+            Rectangle innerRect = new Rectangle(boardRect.X + 4, boardRect.Y + 4, boardRect.Width - 8, boardRect.Height - 8);
+            using (SolidBrush highlight = new SolidBrush(Color.FromArgb(80, 255, 255, 255)))
+            {
+                Rectangle highlightRect = new Rectangle(innerRect.X, innerRect.Y, innerRect.Width, 8);
+                g.FillRoundedRectangle(highlight, highlightRect, 16);
+            }
+            
+            // Border
+            using (Pen borderPen = new Pen(Color.FromArgb(255, 100, 60, 160), 4))
+            {
+                g.DrawRoundedRectangle(borderPen, boardRect, 20);
+            }
+
+            // Draw grid cells
+            for (int r = 0; r < Rows; r++)
+            {
+                for (int c = 0; c < Cols; c++)
+                {
+                    Rectangle cellRect = new Rectangle(
+                        GridOffsetX + c * TileSize - 2, 
+                        GridOffsetY + r * TileSize - 2, 
+                        TileSize - 4, 
+                        TileSize - 4);
+                    
+                    // Cell background
+                    using (SolidBrush cellBrush = new SolidBrush(Color.FromArgb(30, 20, 40)))
+                    {
+                        g.FillRoundedRectangle(cellBrush, cellRect, 8);
+                    }
+                }
+            }
+
+            // Draw candies
             for (int r = 0; r < Rows; r++)
             {
                 for (int c = 0; c < Cols; c++)
@@ -627,87 +1009,30 @@ namespace CrushIt.UI
                 }
             }
 
+            // Draw particles
             foreach (var p in burstParticles)
             {
                 using (SolidBrush pb = new SolidBrush(Color.FromArgb((int)p.Alpha, p.ParticleColor)))
                 {
-                    g.FillRectangle(pb, p.X - p.Size / 2, p.Y - p.Size / 2, p.Size, p.Size);
+                    g.FillEllipse(pb, p.X - p.Size / 2, p.Y - p.Size / 2, p.Size, p.Size);
                 }
             }
-
-            if (levelCompleted)
+        }
+        
+        private void DrawConfetti(Graphics g)
+        {
+            foreach (var confetti in confettiParticles)
             {
-                using (SolidBrush overlay = new SolidBrush(Color.FromArgb(180, 10, 5, 20)))
+                GraphicsState gstate = g.Save();
+                g.TranslateTransform(confetti.X, confetti.Y);
+                g.RotateTransform(confetti.Rotation * 180 / (float)Math.PI);
+                
+                using (SolidBrush confettiBrush = new SolidBrush(Color.FromArgb((int)(255 * confetti.Alpha), confetti.Color)))
                 {
-                    g.FillRectangle(overlay, this.ClientRectangle);
+                    g.FillRectangle(confettiBrush, -confetti.Size / 2, -confetti.Size / 2, confetti.Size, confetti.Size);
                 }
-
-                int bannerWidth = 500;
-                int bannerHeight = 90;
-                int bannerX = (this.ClientSize.Width - bannerWidth) / 2;
-                Rectangle compBanner = new Rectangle(bannerX, 240, bannerWidth, bannerHeight);
-                int cornerRadius = 20;
-
-                using (SolidBrush glow = new SolidBrush(Color.FromArgb(100, 255, 100, 200)))
-                {
-                    DrawRoundedRectangle(g, new Rectangle(compBanner.X - 5, compBanner.Y - 5, compBanner.Width + 10, compBanner.Height + 10), cornerRadius + 5, glow);
-                }
-
-                using (SolidBrush cShadow = new SolidBrush(Color.FromArgb(10, 5, 15)))
-                {
-                    DrawRoundedRectangle(g, new Rectangle(compBanner.X + 8, compBanner.Y + 8, compBanner.Width, compBanner.Height), cornerRadius, cShadow);
-                }
-
-                using (SolidBrush cBorder = new SolidBrush(Color.Black))
-                {
-                    DrawRoundedRectangle(g, compBanner, cornerRadius, cBorder);
-                }
-
-                Rectangle cInner = new Rectangle(compBanner.X + 6, compBanner.Y + 6, compBanner.Width - 12, compBanner.Height - 12);
-                using (LinearGradientBrush cFill = new LinearGradientBrush(cInner, Color.FromArgb(255, 100, 50, 180), Color.FromArgb(255, 60, 30, 140), LinearGradientMode.Vertical))
-                {
-                    DrawRoundedRectangle(g, cInner, cornerRadius - 4, cFill);
-                }
-
-                Rectangle highlightRect = new Rectangle(cInner.X, cInner.Y, cInner.Width, cInner.Height / 2);
-                using (LinearGradientBrush cHi = new LinearGradientBrush(highlightRect, Color.FromArgb(200, 255, 150, 220), Color.FromArgb(150, 200, 100, 180), LinearGradientMode.Vertical))
-                {
-                    DrawRoundedRectangle(g, new Rectangle(cInner.X, cInner.Y, cInner.Width, cInner.Height / 2), cornerRadius - 4, cHi);
-                }
-
-                DrawStar(g, compBanner.X + 30, compBanner.Y + 45, 12, Color.FromArgb(255, 255, 215, 0), completionAnimationPhase);
-                DrawStar(g, compBanner.Right - 30, compBanner.Y + 45, 12, Color.FromArgb(255, 255, 215, 0), completionAnimationPhase + 30);
-
-                int jumpOffset = (int)(6 * Math.Sin(completionAnimationPhase * Math.PI / 30));
-
-                using (Font compFont = new Font("Arial Black", 26, FontStyle.Bold))
-                {
-                    using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
-                    {
-                        string levelText = "LEVEL";
-                        string completedText = "COMPLETED!";
-
-                        float levelY = compBanner.Y + 22 + jumpOffset;
-                        float completedY = compBanner.Y + 58 + jumpOffset;
-
-                        g.DrawString(levelText, compFont, new SolidBrush(Color.FromArgb(150, 255, 100, 200)), new RectangleF(compBanner.X + 3, levelY + 3, compBanner.Width, 40), sf);
-                        g.DrawString(completedText, compFont, new SolidBrush(Color.FromArgb(150, 255, 200, 100)), new RectangleF(compBanner.X + 3, completedY + 3, compBanner.Width, 40), sf);
-
-                        g.DrawString(levelText, compFont, Brushes.Black, new RectangleF(compBanner.X + 2, levelY + 2, compBanner.Width, 40), sf);
-                        g.DrawString(completedText, compFont, Brushes.Black, new RectangleF(compBanner.X + 2, completedY + 2, compBanner.Width, 40), sf);
-
-                        g.DrawString(levelText, compFont, Brushes.White, new RectangleF(compBanner.X, levelY, compBanner.Width, 40), sf);
-                        g.DrawString(completedText, compFont, new SolidBrush(Color.FromArgb(255, 255, 215, 0)), new RectangleF(compBanner.X, completedY, compBanner.Width, 40), sf);
-                    }
-                }
-            }
-
-            using (SolidBrush framePen = new SolidBrush(Color.FromArgb(220, 50, 100)))
-            {
-                g.FillRectangle(framePen, 0, 0, this.ClientSize.Width, 6);
-                g.FillRectangle(framePen, 0, 0, 6, this.ClientSize.Height);
-                g.FillRectangle(framePen, 0, this.ClientSize.Height - 6, this.ClientSize.Width, 6);
-                g.FillRectangle(framePen, this.ClientSize.Width - 6, 0, 6, this.ClientSize.Height);
+                
+                g.Restore(gstate);
             }
         }
 
@@ -716,6 +1041,7 @@ namespace CrushIt.UI
             Color mainColor = Color.Red;
             Color darkColor = Color.DarkRed;
             Color lightColor = Color.Pink;
+            Color glowColor = Color.White;
 
             switch (candy)
             {
@@ -723,50 +1049,95 @@ namespace CrushIt.UI
                     mainColor = Color.FromArgb(235, 45, 75);
                     darkColor = Color.FromArgb(135, 10, 35);
                     lightColor = Color.FromArgb(255, 140, 160);
+                    glowColor = Color.FromArgb(255, 100, 50, 80);
                     break;
                 case CandyType.BlueGummy:
                     mainColor = Color.FromArgb(35, 165, 245);
                     darkColor = Color.FromArgb(10, 75, 155);
                     lightColor = Color.FromArgb(150, 225, 255);
+                    glowColor = Color.FromArgb(255, 50, 100, 180);
                     break;
                 case CandyType.GreenApple:
                     mainColor = Color.FromArgb(45, 205, 85);
                     darkColor = Color.FromArgb(15, 105, 35);
                     lightColor = Color.FromArgb(150, 255, 175);
+                    glowColor = Color.FromArgb(255, 50, 150, 80);
                     break;
                 case CandyType.YellowLemon:
                     mainColor = Color.FromArgb(255, 215, 35);
                     darkColor = Color.FromArgb(170, 125, 0);
                     lightColor = Color.FromArgb(255, 245, 160);
+                    glowColor = Color.FromArgb(255, 200, 150, 50);
                     break;
                 case CandyType.PurplePlum:
                     mainColor = Color.FromArgb(175, 75, 215);
                     darkColor = Color.FromArgb(95, 20, 125);
                     lightColor = Color.FromArgb(225, 155, 255);
+                    glowColor = Color.FromArgb(255, 100, 50, 180);
                     break;
             }
 
-            using (SolidBrush b = new SolidBrush(isSelected ? Color.White : Color.Black))
-                g.FillRectangle(b, x, y, size, size);
+            // Subtle floating animation
+            float floatOffset = (float)(2 * Math.Sin(pulsePhase * 0.05 + (x + y) * 0.1));
+            int animatedY = y + (int)floatOffset;
 
-            Rectangle inner = new Rectangle(x + 3, y + 3, size - 6, size - 6);
-            using (SolidBrush b = new SolidBrush(mainColor))
-                g.FillRectangle(b, inner);
-
-            using (SolidBrush b = new SolidBrush(lightColor))
+            // Enhanced selection glow
+            if (isSelected)
             {
-                g.FillRectangle(b, inner.X, inner.Y, inner.Width, 4);
-                g.FillRectangle(b, inner.X, inner.Y, 4, inner.Height);
+                int glowPulse = (int)(15 * Math.Sin(pulsePhase * Math.PI / 20));
+                using (SolidBrush selectionGlow = new SolidBrush(Color.FromArgb(60 + glowPulse, 255, 255, 100)))
+                {
+                    Rectangle glowRect = new Rectangle(x - 4, animatedY - 4, size + 8, size + 8);
+                    g.FillRoundedRectangle(selectionGlow, glowRect, 12);
+                }
+                
+                using (Pen selectionBorder = new Pen(Color.FromArgb(255, 255, 255, 200), 3))
+                {
+                    Rectangle borderRect = new Rectangle(x + 1, animatedY + 1, size - 2, size - 2);
+                    g.DrawRoundedRectangle(selectionBorder, borderRect, 8);
+                }
             }
 
-            using (SolidBrush b = new SolidBrush(darkColor))
+            // Background
+            using (SolidBrush b = new SolidBrush(isSelected ? Color.FromArgb(50, 50, 50) : Color.Black))
+                g.FillRectangle(b, x, animatedY, size, size);
+
+            // Candy glow effect
+            int candyGlowPulse = (int)(8 * Math.Sin(pulsePhase * Math.PI / 30 + (x + y) * 0.2));
+            using (SolidBrush candyGlow = new SolidBrush(Color.FromArgb(20 + candyGlowPulse, glowColor)))
             {
-                g.FillRectangle(b, inner.X, inner.Y + inner.Height - 4, inner.Width, 4);
-                g.FillRectangle(b, inner.X + inner.Width - 4, inner.Y, 4, inner.Height);
+                Rectangle glowRect = new Rectangle(x - 2, animatedY - 2, size + 4, size + 4);
+                g.FillRoundedRectangle(candyGlow, glowRect, 10);
+            }
+
+            Rectangle inner = new Rectangle(x + 3, animatedY + 3, size - 6, size - 6);
+            
+            // Gradient fill for candy body
+            using (LinearGradientBrush candyGradient = new LinearGradientBrush(
+                inner, mainColor, Color.FromArgb(200, darkColor.R, darkColor.G, darkColor.B), LinearGradientMode.Vertical))
+            {
+                g.FillRoundedRectangle(candyGradient, inner, 8);
+            }
+
+            // Enhanced highlights
+            using (SolidBrush b = new SolidBrush(Color.FromArgb(230, lightColor)))
+            {
+                g.FillRoundedRectangle(b, new Rectangle(inner.X, inner.Y, inner.Width, 5), 4);
+                g.FillRoundedRectangle(b, new Rectangle(inner.X, inner.Y, 5, inner.Height), 4);
+            }
+
+            // Enhanced shadows
+            using (SolidBrush b = new SolidBrush(Color.FromArgb(180, darkColor)))
+            {
+                g.FillRoundedRectangle(b, new Rectangle(inner.X, inner.Y + inner.Height - 5, inner.Width, 5), 4);
+                g.FillRoundedRectangle(b, new Rectangle(inner.X + inner.Width - 5, inner.Y, 5, inner.Height), 4);
             }
 
             int cx = x + (size / 2);
-            int cy = y + (size / 2);
+            int cy = animatedY + (size / 2);
+
+            // Draw sparkle effects
+            DrawCandySparkles(g, cx, cy, candy, pulsePhase);
 
             switch (candy)
             {
@@ -786,48 +1157,124 @@ namespace CrushIt.UI
                     DrawPixelPurplePlum(g, cx, cy);
                     break;
             }
+            
+            // Top shine overlay
+            DrawCandyShine(g, inner, pulsePhase);
+        }
+        
+        private void DrawCandySparkles(Graphics g, int cx, int cy, CandyType candy, int phase)
+        {
+            // Animated sparkles that move around the candy
+            int sparkleOffset = phase % 60;
+            float sparkleAlpha = 1.0f - (sparkleOffset / 60.0f);
+            
+            if (sparkleAlpha > 0)
+            {
+                int sparkleX = cx + (int)(10 * Math.Cos(phase * 0.1));
+                int sparkleY = cy + (int)(10 * Math.Sin(phase * 0.1));
+                
+                using (SolidBrush sparkle = new SolidBrush(Color.FromArgb((int)(255 * sparkleAlpha), 255, 255, 255)))
+                {
+                    // Draw small sparkle star
+                    Point[] starPoints = new Point[4];
+                    for (int i = 0; i < 4; i++)
+                    {
+                        double angle = i * Math.PI / 2;
+                        starPoints[i] = new Point(
+                            (int)(sparkleX + Math.Cos(angle) * 3),
+                            (int)(sparkleY + Math.Sin(angle) * 3)
+                        );
+                    }
+                    g.FillPolygon(sparkle, starPoints);
+                }
+            }
+        }
+        
+        private void DrawCandyShine(Graphics g, Rectangle rect, int phase)
+        {
+            // Moving shine effect
+            int shineX = rect.X + (int)(rect.Width * 0.2 + 5 * Math.Sin(phase * 0.05));
+            int shineY = rect.Y + (int)(rect.Height * 0.3);
+            
+            using (SolidBrush shine = new SolidBrush(Color.FromArgb(100, 255, 255, 255)))
+            {
+                g.FillEllipse(shine, shineX, shineY, 8, 6);
+            }
         }
 
         private void DrawPixelStrawberry(Graphics g, int cx, int cy)
         {
-            using (SolidBrush leaf = new SolidBrush(Color.FromArgb(40, 190, 60)))
+            // Enhanced leaf with gradient effect
+            using (SolidBrush leaf = new SolidBrush(Color.FromArgb(60, 210, 80)))
             {
                 g.FillRectangle(leaf, cx - 6, cy - 10, 12, 3);
                 g.FillRectangle(leaf, cx - 8, cy - 9, 4, 3);
                 g.FillRectangle(leaf, cx + 4, cy - 9, 4, 3);
             }
+            
+            // Leaf highlight
+            using (SolidBrush leafHighlight = new SolidBrush(Color.FromArgb(100, 240, 120)))
+            {
+                g.FillRectangle(leafHighlight, cx - 6, cy - 10, 4, 2);
+            }
 
-            using (SolidBrush body = new SolidBrush(Color.FromArgb(255, 75, 100)))
+            // Enhanced body with more depth
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(255, 90, 120)))
             {
                 g.FillRectangle(body, cx - 8, cy - 7, 16, 8);
                 g.FillRectangle(body, cx - 6, cy + 1, 12, 6);
                 g.FillRectangle(body, cx - 3, cy + 7, 6, 4);
             }
+            
+            // Body highlight
+            using (SolidBrush bodyHighlight = new SolidBrush(Color.FromArgb(255, 140, 170)))
+            {
+                g.FillRectangle(bodyHighlight, cx - 7, cy - 6, 4, 4);
+                g.FillRectangle(bodyHighlight, cx - 5, cy - 2, 3, 3);
+            }
 
-            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(160, 20, 45)))
+            // Enhanced shadow with more detail
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(180, 30, 60)))
             {
                 g.FillRectangle(shadow, cx + 5, cy - 6, 3, 6);
                 g.FillRectangle(shadow, cx + 3, cy + 1, 3, 5);
                 g.FillRectangle(shadow, cx, cy + 7, 3, 3);
             }
 
-            using (SolidBrush seed = new SolidBrush(Color.FromArgb(255, 240, 120)))
+            // Enhanced seeds with glow
+            using (SolidBrush seed = new SolidBrush(Color.FromArgb(255, 250, 140)))
             {
                 g.FillRectangle(seed, cx - 4, cy - 4, 2, 2);
                 g.FillRectangle(seed, cx + 2, cy - 4, 2, 2);
                 g.FillRectangle(seed, cx - 1, cy, 2, 2);
                 g.FillRectangle(seed, cx - 3, cy + 4, 2, 2);
             }
-
-            using (SolidBrush gloss = new SolidBrush(Color.White))
+            
+            // Seed shine
+            using (SolidBrush seedShine = new SolidBrush(Color.FromArgb(255, 255, 200)))
             {
-                g.FillRectangle(gloss, cx - 6, cy - 6, 2, 3);
+                g.FillRectangle(seedShine, cx - 4, cy - 4, 1, 1);
+                g.FillRectangle(seedShine, cx + 2, cy - 4, 1, 1);
+            }
+
+            // Enhanced gloss with animated shine
+            int glossOffset = (int)(2 * Math.Sin(pulsePhase * 0.1));
+            using (SolidBrush gloss = new SolidBrush(Color.FromArgb(200, 255, 255, 255)))
+            {
+                g.FillRectangle(gloss, cx - 6 + glossOffset, cy - 6, 3, 4);
+            }
+            
+            // Extra highlight dot
+            using (SolidBrush extraGloss = new SolidBrush(Color.FromArgb(150, 255, 255, 255)))
+            {
+                g.FillEllipse(extraGloss, cx + 2, cy - 8, 2, 2);
             }
         }
 
         private void DrawPixelBlueGummy(Graphics g, int cx, int cy)
         {
-            using (SolidBrush body = new SolidBrush(Color.FromArgb(100, 210, 255)))
+            // Enhanced body with gradient-like effect
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(120, 220, 255)))
             {
                 g.FillRectangle(body, cx - 4, cy - 10, 8, 3);
                 g.FillRectangle(body, cx - 8, cy - 7, 16, 5);
@@ -835,8 +1282,16 @@ namespace CrushIt.UI
                 g.FillRectangle(body, cx - 8, cy + 4, 16, 5);
                 g.FillRectangle(body, cx - 4, cy + 9, 8, 3);
             }
+            
+            // Body highlight
+            using (SolidBrush bodyHighlight = new SolidBrush(Color.FromArgb(180, 240, 255)))
+            {
+                g.FillRectangle(bodyHighlight, cx - 8, cy - 7, 6, 3);
+                g.FillRectangle(bodyHighlight, cx - 10, cy - 2, 8, 4);
+            }
 
-            using (SolidBrush dark = new SolidBrush(Color.FromArgb(0, 80, 175)))
+            // Enhanced dark areas
+            using (SolidBrush dark = new SolidBrush(Color.FromArgb(20, 100, 200)))
             {
                 g.FillRectangle(dark, cx + 4, cy - 7, 4, 4);
                 g.FillRectangle(dark, cx + 6, cy - 2, 4, 6);
@@ -844,48 +1299,103 @@ namespace CrushIt.UI
                 g.FillRectangle(dark, cx - 2, cy + 9, 6, 3);
             }
 
-            using (SolidBrush shine = new SolidBrush(Color.FromArgb(220, 250, 255)))
+            // Enhanced shine with animation
+            int shineOffset = (int)(2 * Math.Sin(pulsePhase * 0.08 + cx * 0.1));
+            using (SolidBrush shine = new SolidBrush(Color.FromArgb(240, 255, 255)))
             {
-                g.FillRectangle(shine, cx - 6, cy - 6, 4, 4);
-                g.FillRectangle(shine, cx - 8, cy - 1, 4, 4);
-                g.FillRectangle(shine, cx - 6, cy + 4, 3, 3);
+                g.FillRectangle(shine, cx - 6 + shineOffset, cy - 6, 4, 4);
+                g.FillRectangle(shine, cx - 8 + shineOffset, cy - 1, 4, 4);
+                g.FillRectangle(shine, cx - 6 + shineOffset, cy + 4, 3, 3);
+            }
+            
+            // Extra sparkle
+            using (SolidBrush sparkle = new SolidBrush(Color.FromArgb(180, 255, 255, 255)))
+            {
+                g.FillEllipse(sparkle, cx - 2, cy - 8, 2, 2);
+                g.FillEllipse(sparkle, cx + 3, cy + 6, 2, 2);
+            }
+            
+            // Gummy bear ear detail
+            using (SolidBrush ear = new SolidBrush(Color.FromArgb(100, 200, 240)))
+            {
+                g.FillRectangle(ear, cx - 11, cy - 3, 3, 4);
+                g.FillRectangle(ear, cx + 8, cy - 3, 3, 4);
             }
         }
 
         private void DrawPixelGreenApple(Graphics g, int cx, int cy)
         {
-            using (SolidBrush stem = new SolidBrush(Color.FromArgb(120, 75, 30)))
+            // Enhanced stem with gradient
+            using (SolidBrush stem = new SolidBrush(Color.FromArgb(140, 90, 40)))
             {
                 g.FillRectangle(stem, cx - 1, cy - 11, 3, 4);
             }
-
-            using (SolidBrush leaf = new SolidBrush(Color.FromArgb(110, 235, 60)))
+            
+            // Stem highlight
+            using (SolidBrush stemHighlight = new SolidBrush(Color.FromArgb(180, 120, 60)))
             {
-                g.FillRectangle(leaf, cx + 2, cy - 11, 4, 3);
+                g.FillRectangle(stemHighlight, cx - 1, cy - 11, 1, 2);
             }
 
-            using (SolidBrush body = new SolidBrush(Color.FromArgb(110, 230, 60)))
+            // Enhanced leaf with more detail
+            using (SolidBrush leaf = new SolidBrush(Color.FromArgb(130, 245, 80)))
+            {
+                g.FillRectangle(leaf, cx + 2, cy - 11, 4, 3);
+                g.FillRectangle(leaf, cx + 3, cy - 10, 2, 4);
+            }
+            
+            // Leaf vein
+            using (SolidBrush leafVein = new SolidBrush(Color.FromArgb(80, 200, 50)))
+            {
+                g.FillRectangle(leafVein, cx + 4, cy - 10, 1, 3);
+            }
+
+            // Enhanced body with gradient effect
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(130, 240, 80)))
             {
                 g.FillRectangle(body, cx - 9, cy - 7, 18, 12);
                 g.FillRectangle(body, cx - 7, cy + 5, 14, 5);
             }
+            
+            // Body highlight
+            using (SolidBrush bodyHighlight = new SolidBrush(Color.FromArgb(180, 255, 120)))
+            {
+                g.FillRectangle(bodyHighlight, cx - 8, cy - 6, 4, 6);
+                g.FillRectangle(bodyHighlight, cx - 6, cy - 3, 3, 4);
+            }
 
-            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(20, 110, 35)))
+            // Enhanced shadow
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(30, 130, 50)))
             {
                 g.FillRectangle(shadow, cx + 5, cy - 6, 4, 10);
                 g.FillRectangle(shadow, cx + 3, cy + 5, 4, 4);
                 g.FillRectangle(shadow, cx - 2, cy + 8, 4, 2);
             }
 
-            using (SolidBrush gloss = new SolidBrush(Color.White))
+            // Animated gloss
+            int glossOffset = (int)(2 * Math.Sin(pulsePhase * 0.09 + cy * 0.1));
+            using (SolidBrush gloss = new SolidBrush(Color.FromArgb(220, 255, 255, 255)))
             {
-                g.FillRectangle(gloss, cx - 6, cy - 5, 3, 5);
+                g.FillRectangle(gloss, cx - 6 + glossOffset, cy - 5, 3, 5);
+            }
+            
+            // Apple dimple detail
+            using (SolidBrush dimple = new SolidBrush(Color.FromArgb(80, 200, 50)))
+            {
+                g.FillRectangle(dimple, cx, cy + 2, 2, 2);
+            }
+            
+            // Extra shine
+            using (SolidBrush extraShine = new SolidBrush(Color.FromArgb(150, 255, 255, 255)))
+            {
+                g.FillEllipse(extraShine, cx - 4, cy - 8, 2, 2);
             }
         }
 
         private void DrawPixelYellowLemon(Graphics g, int cx, int cy)
         {
-            using (SolidBrush body = new SolidBrush(Color.FromArgb(255, 240, 80)))
+            // Enhanced body with gradient effect
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(255, 250, 100)))
             {
                 g.FillRectangle(body, cx - 3, cy - 10, 6, 3);
                 g.FillRectangle(body, cx - 7, cy - 7, 14, 4);
@@ -893,50 +1403,123 @@ namespace CrushIt.UI
                 g.FillRectangle(body, cx - 7, cy + 4, 14, 4);
                 g.FillRectangle(body, cx - 3, cy + 8, 6, 3);
             }
+            
+            // Body highlight
+            using (SolidBrush bodyHighlight = new SolidBrush(Color.FromArgb(255, 255, 180)))
+            {
+                g.FillRectangle(bodyHighlight, cx - 7, cy - 6, 6, 3);
+                g.FillRectangle(bodyHighlight, cx - 8, cy - 2, 8, 4);
+            }
 
-            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(190, 130, 0)))
+            // Enhanced shadow
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(210, 150, 20)))
             {
                 g.FillRectangle(shadow, cx + 4, cy - 3, 5, 6);
                 g.FillRectangle(shadow, cx + 2, cy + 4, 5, 3);
                 g.FillRectangle(shadow, cx - 1, cy + 8, 3, 2);
             }
 
-            using (SolidBrush line = new SolidBrush(Color.FromArgb(255, 180, 20)))
+            // Enhanced line detail
+            using (SolidBrush line = new SolidBrush(Color.FromArgb(255, 200, 40)))
             {
                 g.FillRectangle(line, cx - 5, cy, 10, 2);
             }
-
-            using (SolidBrush gloss = new SolidBrush(Color.White))
+            
+            // Line highlight
+            using (SolidBrush lineHighlight = new SolidBrush(Color.FromArgb(255, 230, 100)))
             {
-                g.FillRectangle(gloss, cx - 5, cy - 5, 3, 3);
+                g.FillRectangle(lineHighlight, cx - 5, cy, 4, 1);
+            }
+
+            // Animated gloss
+            int glossOffset = (int)(2 * Math.Sin(pulsePhase * 0.07 + cx * 0.1));
+            using (SolidBrush gloss = new SolidBrush(Color.FromArgb(240, 255, 255, 255)))
+            {
+                g.FillRectangle(gloss, cx - 5 + glossOffset, cy - 5, 3, 3);
+            }
+            
+            // Lemon texture dots
+            using (SolidBrush texture = new SolidBrush(Color.FromArgb(255, 220, 60)))
+            {
+                g.FillRectangle(texture, cx - 3, cy - 2, 1, 1);
+                g.FillRectangle(texture, cx + 2, cy + 1, 1, 1);
+                g.FillRectangle(texture, cx - 1, cy + 3, 1, 1);
+            }
+            
+            // Extra shine
+            using (SolidBrush extraShine = new SolidBrush(Color.FromArgb(180, 255, 255, 255)))
+            {
+                g.FillEllipse(extraShine, cx + 2, cy - 7, 2, 2);
+            }
+            
+            // Lemon tip detail
+            using (SolidBrush tip = new SolidBrush(Color.FromArgb(255, 200, 30)))
+            {
+                g.FillRectangle(tip, cx - 1, cy - 9, 2, 2);
+                g.FillRectangle(tip, cx - 1, cy + 7, 2, 2);
             }
         }
 
         private void DrawPixelPurplePlum(Graphics g, int cx, int cy)
         {
-            using (SolidBrush body = new SolidBrush(Color.FromArgb(215, 110, 255)))
+            // Enhanced body with gradient effect
+            using (SolidBrush body = new SolidBrush(Color.FromArgb(230, 130, 255)))
             {
                 g.FillRectangle(body, cx - 6, cy - 9, 12, 3);
                 g.FillRectangle(body, cx - 9, cy - 6, 18, 12);
                 g.FillRectangle(body, cx - 6, cy + 6, 12, 3);
             }
+            
+            // Body highlight
+            using (SolidBrush bodyHighlight = new SolidBrush(Color.FromArgb(245, 170, 255)))
+            {
+                g.FillRectangle(bodyHighlight, cx - 8, cy - 5, 6, 6);
+                g.FillRectangle(bodyHighlight, cx - 6, cy - 2, 4, 4);
+            }
 
-            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(90, 15, 130)))
+            // Enhanced shadow
+            using (SolidBrush shadow = new SolidBrush(Color.FromArgb(110, 25, 160)))
             {
                 g.FillRectangle(shadow, cx + 5, cy - 5, 4, 10);
                 g.FillRectangle(shadow, cx + 2, cy + 5, 4, 3);
             }
 
-            using (SolidBrush swirl = new SolidBrush(Color.White))
+            // Enhanced swirl with animation
+            int swirlOffset = (int)(1 * Math.Sin(pulsePhase * 0.05));
+            using (SolidBrush swirl = new SolidBrush(Color.FromArgb(255, 255, 255, 255)))
             {
-                g.FillRectangle(swirl, cx - 5, cy - 5, 3, 3);
-                g.FillRectangle(swirl, cx - 2, cy - 2, 4, 4);
-                g.FillRectangle(swirl, cx + 2, cy + 2, 3, 3);
+                g.FillRectangle(swirl, cx - 5 + swirlOffset, cy - 5, 3, 3);
+                g.FillRectangle(swirl, cx - 2 + swirlOffset, cy - 2, 4, 4);
+                g.FillRectangle(swirl, cx + 2 + swirlOffset, cy + 2, 3, 3);
+            }
+            
+            // Swirl glow
+            using (SolidBrush swirlGlow = new SolidBrush(Color.FromArgb(100, 200, 150, 255)))
+            {
+                g.FillRectangle(swirlGlow, cx - 6 + swirlOffset, cy - 6, 5, 5);
+                g.FillRectangle(swirlGlow, cx + 1 + swirlOffset, cy + 1, 5, 5);
             }
 
-            using (SolidBrush gloss = new SolidBrush(Color.FromArgb(240, 200, 255)))
+            // Animated gloss
+            int glossOffset = (int)(2 * Math.Sin(pulsePhase * 0.06 + (cx + cy) * 0.05));
+            using (SolidBrush gloss = new SolidBrush(Color.FromArgb(250, 220, 255)))
             {
-                g.FillRectangle(gloss, cx - 6, cy - 7, 5, 2);
+                g.FillRectangle(gloss, cx - 6 + glossOffset, cy - 7, 5, 2);
+            }
+            
+            // Extra shine
+            using (SolidBrush extraShine = new SolidBrush(Color.FromArgb(200, 255, 255, 255)))
+            {
+                g.FillEllipse(extraShine, cx - 3, cy - 7, 2, 2);
+                g.FillEllipse(extraShine, cx + 4, cy + 3, 2, 2);
+            }
+            
+            // Plum texture dots
+            using (SolidBrush texture = new SolidBrush(Color.FromArgb(200, 100, 230)))
+            {
+                g.FillRectangle(texture, cx - 2, cy - 3, 1, 1);
+                g.FillRectangle(texture, cx + 3, cy, 1, 1);
+                g.FillRectangle(texture, cx - 1, cy + 4, 1, 1);
             }
         }
     }
