@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using NAudio.Wave;
+using CrushIt.Data;
 
 namespace CrushIt.Core
 {
@@ -64,6 +65,20 @@ namespace CrushIt.Core
                 _isCleaningUp = true;
                 CleanupAllPlayers();
                 _isCleaningUp = false;
+            }
+        }
+        
+        public static void LoadSettings(SoundSettings settings)
+        {
+            lock (_lock)
+            {
+                _settings = settings ?? new SoundSettings();
+                
+                // Update background music volume if playing
+                if (_backgroundPlayer != null)
+                {
+                    _backgroundPlayer.Volume = _settings.MasterVolume * _settings.MusicVolume;
+                }
             }
         }
 

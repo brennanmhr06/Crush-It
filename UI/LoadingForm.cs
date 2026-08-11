@@ -188,8 +188,9 @@ namespace CrushIt.UI
             }
 
             // Increase sparkles from 15 to 40
-            int screenWidth = Screen.PrimaryScreen.WorkingArea.Width;
-            int screenHeight = Screen.PrimaryScreen.WorkingArea.Height;
+            var primaryScreen = Screen.PrimaryScreen;
+            int screenWidth = primaryScreen?.WorkingArea.Width ?? 1920;
+            int screenHeight = primaryScreen?.WorkingArea.Height ?? 1080;
             
             for (int i = 0; i < 40; i++)
             {

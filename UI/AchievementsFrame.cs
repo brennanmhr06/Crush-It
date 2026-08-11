@@ -536,12 +536,10 @@ namespace CrushIt.UI
                     return currentUser.CompletedLevels?.Contains(1) == true ? 1.0 : 0.0;
 
                 case AchievementType.Level5Complete:
-                    int completedLevels = currentUser.CompletedLevels?.Count ?? 0;
-                    return Math.Min(1.0, completedLevels / 5.0);
+                    return currentUser.CompletedLevels?.Contains(5) == true ? 1.0 : 0.0;
 
                 case AchievementType.Level10Complete:
-                    completedLevels = currentUser.CompletedLevels?.Count ?? 0;
-                    return Math.Min(1.0, completedLevels / 10.0);
+                    return currentUser.CompletedLevels?.Contains(10) == true ? 1.0 : 0.0;
 
                 case AchievementType.Score1000:
                     return Math.Min(1.0, currentUser.HighestScore / 1000.0);

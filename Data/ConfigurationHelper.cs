@@ -22,7 +22,7 @@ namespace CrushIt.Data
             
             if (_soundSettings != null)
             {
-                SoundManager.Settings = _soundSettings;
+                SoundManager.LoadSettings(_soundSettings);
             }
         }
 
