@@ -43,10 +43,10 @@ namespace CrushIt.UI
         private int totalLevelsCompleted = 0;
 
 
-        private Label usernameLabel = null!;
-        private Label pencilIconLabel = null!;
-        private TextBox usernameEditBox = null!;
         private bool isEditingUsername = false;
+        private string editingUsername = "";
+        private int usernameCursorBlinkPhase = 0;
+        private Rectangle pencilIconRect = Rectangle.Empty;
         private int levelsCompleted;
         private int highestLevel;
         private int gold;
@@ -116,7 +116,7 @@ namespace CrushIt.UI
             this.MaximizeBox = false;
 
             this.KeyPreview = true;
-            this.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) this.Close(); };
+            this.KeyDown += MainFrame_KeyDown;
             this.MouseDown += MainFrame_MouseDown;
             this.FormClosed += MainFrame_FormClosed;
             this.FormClosed += (s, e) => {
@@ -137,50 +137,7 @@ namespace CrushIt.UI
 
         private void InitializeHomeControls()
         {
-            usernameLabel = new Label
-            {
-                Font = new Font("Comic Sans MS", 20, FontStyle.Bold),
-                Size = new Size(320, 40),
-                Location = new Point(210, 108),
-                Text = currentUser.Username,
-                ForeColor = Color.White,
-                BackColor = Color.Transparent,
-                TextAlign = ContentAlignment.MiddleLeft,
-                Visible = false
-            };
-
-            pencilIconLabel = new Label
-            {
-                Font = new Font("Segoe UI Emoji", 16, FontStyle.Bold),
-                Size = new Size(40, 40),
-                Location = new Point(530, 108),
-                Text = "✏️",
-                ForeColor = Color.White,
-                BackColor = Color.Transparent,
-                Cursor = Cursors.Hand,
-                TextAlign = ContentAlignment.MiddleCenter,
-                Visible = false
-            };
-            pencilIconLabel.Click += PencilIconLabel_Click;
-
-            usernameEditBox = new TextBox
-            {
-                Font = new Font("Comic Sans MS", 20, FontStyle.Bold),
-                Size = new Size(320, 40),
-                Location = new Point(210, 108),
-                Text = currentUser.Username,
-                BackColor = Color.FromArgb(255, 173, 216, 230),
-                ForeColor = Color.Black,
-                BorderStyle = BorderStyle.FixedSingle,
-                Visible = false
-            };
-            usernameEditBox.TextChanged += UsernameEditBox_TextChanged;
-            usernameEditBox.KeyDown += UsernameEditBox_KeyDown;
-            usernameEditBox.LostFocus += UsernameEditBox_LostFocus;
-
-            this.Controls.Add(usernameLabel);
-            this.Controls.Add(pencilIconLabel);
-            this.Controls.Add(usernameEditBox);
+            // Username editing is now handled inline in the DrawProfileCard method
         }
 
         private void InitializeParticles()
@@ -376,9 +333,6 @@ namespace CrushIt.UI
                 await usersCollection.UpdateOneAsync(filter, update);
             }
 
-            usernameLabel.Text = "@" + currentUser.Username;
-            usernameEditBox.Text = currentUser.Username;
-
             levelsCompleted = currentUser.CompletedLevels?.Count ?? 0;
             highestLevel = currentUser.CompletedLevels != null && currentUser.CompletedLevels.Count > 0
                 ? currentUser.CompletedLevels.Max()
@@ -493,6 +447,24 @@ namespace CrushIt.UI
         private void MainFrame_MouseDown(object? sender, MouseEventArgs e)
         {
             if (isTransitioning) return;
+
+            if (isEditingUsername)
+            {
+                // Click outside username area to finish editing
+                Rectangle usernameArea = new Rectangle(150, 103, 400, 40);
+                if (!usernameArea.Contains(e.Location))
+                {
+                    FinishEditing();
+                }
+                return;
+            }
+
+            // Check if pencil icon was clicked
+            if (!pencilIconRect.IsEmpty && pencilIconRect.Contains(e.Location))
+            {
+                StartEditingUsername();
+                return;
+            }
 
             if (CrushItStyleHelper.TryGetNavClick(e.X, e.Y, this.ClientSize.Width, this.ClientSize.Height, out NavItem clickedNav))
             {
@@ -715,68 +687,104 @@ namespace CrushIt.UI
         }
 
 
-        private void PencilIconLabel_Click(object? sender, EventArgs e)
+        private void StartEditingUsername()
         {
             SoundManager.PlaySound(SoundType.ButtonClick);
             isEditingUsername = true;
-            usernameLabel.Visible = false;
-            pencilIconLabel.Visible = false;
-            usernameEditBox.Visible = true;
-            usernameEditBox.Focus();
-            usernameEditBox.SelectAll();
+            editingUsername = currentUser.Username;
+            this.Focus();
         }
 
-        private async void UsernameEditBox_TextChanged(object? sender, EventArgs e)
-        {
-            if (isEditingUsername)
-            {
-                string newUsername = usernameEditBox.Text.Trim();
-                if (!string.IsNullOrEmpty(newUsername) && newUsername != currentUser.Username)
-                {
-                    currentUser.Username = newUsername;
-
-                    var usersCollection = database.GetCollection<UserAccount>("users");
-                    var filter = Builders<UserAccount>.Filter.Eq(u => u.Id, currentUser.Id);
-                    var update = Builders<UserAccount>.Update.Set(u => u.Username, newUsername);
-                    await usersCollection.UpdateOneAsync(filter, update);
-                }
-            }
-        }
-
-        private void UsernameEditBox_KeyDown(object? sender, KeyEventArgs e)
-        {
-            if (e.KeyCode == Keys.Enter)
-                FinishEditing();
-            else if (e.KeyCode == Keys.Escape)
-            {
-                usernameEditBox.Text = currentUser.Username;
-                FinishEditing();
-            }
-        }
-
-        private void UsernameEditBox_LostFocus(object? sender, EventArgs e)
-        {
-            if (isEditingUsername)
-                FinishEditing();
-        }
-
-        private void FinishEditing()
+        private async void FinishEditing()
         {
             isEditingUsername = false;
-            usernameEditBox.Visible = false;
-            usernameLabel.Visible = currentPage == PageType.Home;
-            pencilIconLabel.Visible = currentPage == PageType.Home;
-            usernameLabel.Text = "@" + currentUser.Username;
+            string newUsername = editingUsername.Trim();
+
+            if (!string.IsNullOrEmpty(newUsername) && newUsername != currentUser.Username)
+            {
+                currentUser.Username = newUsername;
+
+                var usersCollection = database.GetCollection<UserAccount>("users");
+                var filter = Builders<UserAccount>.Filter.Eq(u => u.Id, currentUser.Id);
+                var update = Builders<UserAccount>.Update.Set(u => u.Username, newUsername);
+                await usersCollection.UpdateOneAsync(filter, update);
+            }
         }
 
         private void UpdateControlVisibility()
         {
 
             bool showHomeControls = currentPage == PageType.Home && !isTransitioning;
+        }
 
-            usernameLabel.Visible = showHomeControls && !isEditingUsername;
-            pencilIconLabel.Visible = showHomeControls && !isEditingUsername;
-            usernameEditBox.Visible = isEditingUsername;
+        private void MainFrame_KeyDown(object? sender, KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.Escape)
+            {
+                if (isEditingUsername)
+                {
+                    editingUsername = currentUser.Username;
+                    FinishEditing();
+                }
+                else
+                {
+                    this.Close();
+                }
+            }
+            else if (isEditingUsername)
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    FinishEditing();
+                }
+                else if (e.KeyCode == Keys.Back)
+                {
+                    if (editingUsername.Length > 0)
+                    {
+                        editingUsername = editingUsername.Substring(0, editingUsername.Length - 1);
+                    }
+                }
+                else if (!e.Control && !e.Alt && e.KeyCode != Keys.ShiftKey &&
+                         e.KeyCode != Keys.ControlKey && e.KeyCode != Keys.Menu &&
+                         e.KeyCode != Keys.LButton && e.KeyCode != Keys.RButton &&
+                         e.KeyCode != Keys.MButton && e.KeyCode != Keys.XButton1 &&
+                         e.KeyCode != Keys.XButton2)
+                {
+                    char keyChar = GetCharFromKey(e.KeyCode);
+                    if (keyChar != '\0' && editingUsername.Length < 20)
+                    {
+                        editingUsername += keyChar;
+                    }
+                }
+            }
+        }
+
+        private char GetCharFromKey(Keys key)
+        {
+            // Simple mapping for common keys
+            bool shiftPressed = (ModifierKeys & Keys.Shift) != 0;
+
+            if (key >= Keys.A && key <= Keys.Z)
+            {
+                return shiftPressed ? (char)('A' + (key - Keys.A)) : (char)('a' + (key - Keys.A));
+            }
+            if (key >= Keys.D0 && key <= Keys.D9)
+            {
+                return (char)('0' + (key - Keys.D0));
+            }
+            if (key == Keys.Space)
+            {
+                return ' ';
+            }
+            if (key == Keys.OemMinus || key == Keys.Subtract)
+            {
+                return shiftPressed ? '_' : '-';
+            }
+            if (key == Keys.OemPeriod || key == Keys.Decimal)
+            {
+                return '.';
+            }
+            return '\0';
         }
 
         protected override void OnPaint(PaintEventArgs e)
@@ -1086,6 +1094,53 @@ namespace CrushIt.UI
             using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
             {
                 g.DrawString("★ " + rankTitle + " ★", rankFont, Brushes.Gold, rankBadge, sf);
+            }
+
+            // Draw username with inline editing support
+            Rectangle usernameRect = new Rectangle(card.X + 100, card.Y + 18, 280, 30);
+            using (Font usernameFont = new Font("Comic Sans MS", 18, FontStyle.Bold))
+            using (StringFormat sf = new StringFormat { Alignment = StringAlignment.Near, LineAlignment = StringAlignment.Center })
+            {
+                string displayUsername = isEditingUsername ? editingUsername : currentUser.Username;
+                string usernameText = "@" + displayUsername;
+
+                if (isEditingUsername)
+                {
+                    // Draw faded highlight background
+                    using (SolidBrush highlightBrush = new SolidBrush(Color.FromArgb(60, 255, 255, 200)))
+                    {
+                        SizeF textSize = g.MeasureString(usernameText, usernameFont);
+                        Rectangle highlightRect = new Rectangle(usernameRect.X, usernameRect.Y + 5, (int)textSize.Width + 10, 20);
+                        g.FillRectangle(highlightBrush, highlightRect);
+                    }
+
+                    // Draw username text
+                    g.DrawString(usernameText, usernameFont, Brushes.White, usernameRect, sf);
+
+                    // Draw typing cursor
+                    usernameCursorBlinkPhase = (usernameCursorBlinkPhase + 1) % 30;
+                    if (usernameCursorBlinkPhase < 15)
+                    {
+                        SizeF textSize = g.MeasureString(usernameText, usernameFont);
+                        int cursorX = usernameRect.X + (int)textSize.Width + 2;
+                        using (Pen cursorPen = new Pen(Color.White, 2))
+                        {
+                            g.DrawLine(cursorPen, cursorX, usernameRect.Y + 8, cursorX, usernameRect.Y + 22);
+                        }
+                    }
+                }
+                else
+                {
+                    g.DrawString("@" + currentUser.Username, usernameFont, Brushes.White, usernameRect, sf);
+
+                    // Draw pencil icon
+                    pencilIconRect = new Rectangle(usernameRect.Right + 5, usernameRect.Y + 5, 25, 25);
+                    using (Font pencilFont = new Font("Segoe UI Emoji", 18, FontStyle.Bold))
+                    using (StringFormat pencilSf = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+                    {
+                        g.DrawString("✏️", pencilFont, Brushes.White, pencilIconRect, pencilSf);
+                    }
+                }
             }
 
             using (Font infoFont = new Font("Comic Sans MS", 11, FontStyle.Bold))
