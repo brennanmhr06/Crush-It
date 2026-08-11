@@ -124,7 +124,7 @@ namespace CrushIt.UI
             backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 40, 890, 80, 530));
             
             // Start background music with low volume for gameplay
-            SoundHelper.StartBackgroundMusic(0.08f); // 8% volume during gameplay (very faded)
+            SoundManager.StartBackgroundMusic(0.08f); // 8% volume during gameplay (very faded)
             
             // Apply mobile scaling if needed
             MobileHelper.ApplyMobileScaling(this);
@@ -176,8 +176,10 @@ namespace CrushIt.UI
             this.FormClosed += (s, e) =>
             {
                 idleTimer?.Stop();
+                SoundManager.StopBackgroundMusic();
                 if (Application.OpenForms.Count == 0)
                 {
+                    SoundManager.Cleanup();
                     Application.Exit();
                 }
             };
@@ -258,7 +260,7 @@ namespace CrushIt.UI
             if (isProcessingBoard) return;
             isProcessingBoard = true;
 
-            SoundHelper.PlaySwipeSound();
+            SoundManager.PlaySound(SoundType.Swipe);
 
             await inputController.AnimateSwapAsync(p1, p2);
 
@@ -433,6 +435,7 @@ namespace CrushIt.UI
             if (GameData.TotalScore >= TargetPointGoal)
             {
                 levelCompleted = true;
+                SoundManager.PlaySound(SoundType.LevelComplete);
                 this.Invalidate();
 
                 try
@@ -861,6 +864,8 @@ namespace CrushIt.UI
 
         private async Task ActivateSpecialCandy(Point pt, CandyType type, HashSet<Point> explosionPoints)
         {
+            SoundManager.PlaySound(SoundType.SpecialMove);
+            
             var config = PowerupsConfig.Instance;
             
             if (type.IsStriped())
@@ -901,7 +906,7 @@ namespace CrushIt.UI
                     SpawnVerticalLineExplosion(explosionX, explosionY, GetCandyColor(type.GetBaseType()));
                 }
                 
-                SoundHelper.PlayCandyMatchSound();
+                SoundManager.PlaySound(SoundType.CandyMatch);
             }
             else if (type.IsColorBomb())
             {
@@ -927,7 +932,7 @@ namespace CrushIt.UI
                     int explosionY = GridOffsetY + pt.Y * TileSize + TileSize / 2;
                     SpawnColorExplosion(explosionX, explosionY, GetCandyColor(colorToClear));
                     
-                    SoundHelper.PlayCandyMatchSound();
+                    SoundManager.PlaySound(SoundType.CandyMatch);
                 }
             }
         }
@@ -1128,7 +1133,7 @@ namespace CrushIt.UI
 
                 if (squareMatches.Count > 0)
                 {
-                    SoundHelper.PlayCandyMatchSound();
+                    SoundManager.PlaySound(SoundType.CandyMatch);
 
                     int centerX = squareMatches[0].X;
                     int centerY = squareMatches[0].Y;
@@ -1530,6 +1535,8 @@ namespace CrushIt.UI
 
         private void ShowAchievementNotification(Achievement achievement)
         {
+            SoundManager.PlaySound(SoundType.Achievement);
+            
             var notification = new AchievementNotification
             {
                 AchievementName = achievement.Name,

@@ -5,7 +5,7 @@ using System.Drawing.Drawing2D;
 
 namespace CrushIt.UI
 {
-    public enum NavItem { Home, Levels, Achievements, Guilds }
+    public enum NavItem { Home, Levels, Achievements, Social }
 
     public class StyleParticle
     {
@@ -20,7 +20,7 @@ namespace CrushIt.UI
 
     public static class CrushItStyleHelper
     {
-        private static string[] navLabels = { "HOME", "LEVELS", "AWARDS", "GUILDS" };
+        private static string[] navLabels = { "HOME", "LEVELS", "AWARDS", "SOCIAL" };
 
         public static readonly Color[] ParticleColors = {
             Color.FromArgb(235, 45, 75),
@@ -188,7 +188,7 @@ namespace CrushIt.UI
             int navHeight = 90;
             int navWidth = clientWidth / 4;
 
-            NavItem[] items = { NavItem.Home, NavItem.Levels, NavItem.Achievements, NavItem.Guilds };
+            NavItem[] items = { NavItem.Home, NavItem.Levels, NavItem.Achievements, NavItem.Social };
 
             // Enhanced navbar background with glassmorphism
             Rectangle navBackground = new Rectangle(10, navY, clientWidth - 20, navHeight);

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using CrushIt.Core;
 
 namespace CrushIt.Data
 {
@@ -6,6 +7,7 @@ namespace CrushIt.Data
     {
         private static IConfiguration? _configuration;
         private static MongoDbSettings? _mongoDbSettings;
+        private static SoundSettings? _soundSettings;
 
         public static void Initialize()
         {
@@ -16,6 +18,12 @@ namespace CrushIt.Data
 
             _configuration = builder.Build();
             _mongoDbSettings = _configuration.GetSection("MongoDbSettings").Get<MongoDbSettings>();
+            _soundSettings = _configuration.GetSection("SoundSettings").Get<SoundSettings>();
+            
+            if (_soundSettings != null)
+            {
+                SoundManager.Settings = _soundSettings;
+            }
         }
 
         public static string GetMongoConnectionString()
@@ -34,6 +42,15 @@ namespace CrushIt.Data
                 Initialize();
             }
             return _mongoDbSettings?.DatabaseName ?? string.Empty;
+        }
+
+        public static SoundSettings GetSoundSettings()
+        {
+            if (_soundSettings == null)
+            {
+                Initialize();
+            }
+            return _soundSettings ?? new SoundSettings();
         }
     }
 }

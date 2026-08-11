@@ -56,8 +56,8 @@ namespace CrushIt.UI
             StartAnimation();
 
 
-            SoundHelper.StartBackgroundMusic();
-            SoundHelper.SetBackgroundMusicVolume(0.3f);
+            SoundManager.StartBackgroundMusic();
+            SoundManager.SetBackgroundMusicVolume(0.3f);
 
             MobileHelper.ApplyMobileScaling(this);
         }
@@ -119,8 +119,10 @@ namespace CrushIt.UI
 
             this.FormClosed += (s, e) => {
                 animationTimer?.Stop();
+                SoundManager.StopBackgroundMusic();
                 if (Application.OpenForms.Count == 0)
                 {
+                    SoundManager.Cleanup();
                     Application.Exit();
                 }
             };
@@ -189,6 +191,7 @@ namespace CrushIt.UI
 
         private void PencilIconLabel_Click(object? sender, EventArgs e)
         {
+            SoundManager.PlaySound(SoundType.ButtonClick);
             isEditingUsername = true;
             usernameLabel.Visible = false;
             pencilIconLabel.Visible = false;
@@ -245,7 +248,11 @@ namespace CrushIt.UI
             if (!CrushItStyleHelper.TryGetNavClick(e.X, e.Y, this.ClientSize.Width, this.ClientSize.Height, out NavItem clicked))
                 return;
 
+            SoundManager.PlaySound(SoundType.ButtonClick);
+
             if (clicked == NavItem.Levels)
+            {
+                SoundManager.PlaySound(SoundType.Navigation);
             {
                 // Check if MainFrame already exists and refresh it instead of creating new one
                 foreach (Form form in Application.OpenForms)
@@ -265,9 +272,11 @@ namespace CrushIt.UI
                 main.Show();
                 this.Hide();
                 this.Dispose();
+                }
             }
             else if (clicked == NavItem.Achievements)
             {
+                SoundManager.PlaySound(SoundType.Navigation);
                 // Check if MainFrame already exists and refresh it instead of creating new one
                 foreach (Form form in Application.OpenForms)
                 {

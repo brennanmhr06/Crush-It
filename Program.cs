@@ -1,6 +1,7 @@
 using System;
 using System.Windows.Forms;
 using CrushIt.UI;
+using CrushIt.Core;
 
 namespace CrushIt
 {
@@ -11,6 +12,9 @@ namespace CrushIt
         {
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            
+            // Initialize sound system
+            SoundManager.Initialize();
 
             // Show loading form without tying application lifecycle to it
             LoadingForm loadingForm = new LoadingForm();
@@ -20,6 +24,7 @@ namespace CrushIt
             loadingForm.FormClosed += (s, e) => {
                 if (Application.OpenForms.Count == 0)
                 {
+                    SoundManager.Cleanup();
                     Application.Exit();
                 }
             };

@@ -15,6 +15,9 @@ namespace CrushIt.UI
         public int Y { get; set; }
         public bool Unlocked { get; set; }
         public bool Completed { get; set; }
+        public int Difficulty { get; set; } = 1; // 1-5 difficulty rating
+        public int Stars { get; set; } = 0; // 0-3 stars earned
+        public int Progress { get; set; } = 0; // 0-100 progress percentage
     }
 
     public class LobbyFrame : Form
@@ -56,8 +59,8 @@ namespace CrushIt.UI
             StartAnimation();
 
 
-            SoundHelper.StartBackgroundMusic();
-            SoundHelper.SetBackgroundMusicVolume(0.3f);
+            SoundManager.StartBackgroundMusic();
+            SoundManager.SetBackgroundMusicVolume(0.3f);
 
 
             MobileHelper.ApplyMobileScaling(this);
@@ -262,8 +265,10 @@ namespace CrushIt.UI
             this.MouseLeave += (s, e) => { hoveredLevelIndex = -1; this.Invalidate(); };
             this.FormClosed += (s, e) => {
                 animationTimer?.Stop();
+                SoundManager.StopBackgroundMusic();
                 if (Application.OpenForms.Count == 0)
                 {
+                    SoundManager.Cleanup();
                     Application.Exit();
                 }
             };
@@ -304,7 +309,11 @@ namespace CrushIt.UI
             if (e == null) return;
             if (CrushItStyleHelper.TryGetNavClick(e.X, e.Y, this.ClientSize.Width, this.ClientSize.Height, out NavItem clickedNav))
             {
+                SoundManager.PlaySound(SoundType.ButtonClick);
+
                 if (clickedNav == NavItem.Home || clickedNav == NavItem.Achievements)
+                {
+                    SoundManager.PlaySound(SoundType.Navigation);
                 {
                     // Close any existing GameFrames first
                     foreach (Form form in Application.OpenForms)
@@ -334,6 +343,7 @@ namespace CrushIt.UI
                     main.Show();
                     this.Hide();
                     this.Dispose();
+                    }
                 }
                 else
                 {
@@ -354,6 +364,7 @@ namespace CrushIt.UI
                         int dy = e.Y - level.Y;
                         if (dx * dx + dy * dy <= nodeRadius * nodeRadius)
                         {
+                            SoundManager.PlaySound(SoundType.ButtonClick);
                             // Close any existing GameFrames first
                             foreach (Form form in Application.OpenForms)
                             {
@@ -390,8 +401,8 @@ namespace CrushIt.UI
                 DrawHomeView(g);
             else if (currentNav == NavItem.Achievements)
                 DrawAchievementsView(g);
-            else if (currentNav == NavItem.Guilds)
-                DrawGuildsView(g);
+            else if (currentNav == NavItem.Social)
+                DrawSocialView(g);
 
             CrushItStyleHelper.DrawNavigationBar(g, this.ClientSize.Width, this.ClientSize.Height, currentNav, pulsePhase);
         }
@@ -499,9 +510,9 @@ namespace CrushIt.UI
             DrawPlaceholderView(g, "ACHIEVEMENTS", "Tap ACHIEVEMENTS in the nav bar to view your trophies!");
         }
 
-        private void DrawGuildsView(Graphics g)
+        private void DrawSocialView(Graphics g)
         {
-            DrawPlaceholderView(g, "GUILDS", "Guilds coming soon!");
+            DrawPlaceholderView(g, "SOCIAL", "Social features coming soon!");
         }
     }
 }

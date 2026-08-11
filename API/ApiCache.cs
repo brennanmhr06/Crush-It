@@ -246,14 +246,11 @@ namespace CrushIt.API
             public static string ApiStatus() => $"system:status";
         }
 
-        public static class Guilds
+        public static class Social
         {
-            public static string Guild(string guildId) => $"guild:guild:{guildId}";
-            public static string Search(string query, int limit) => $"guild:search:{query}:{limit}";
-            public static string UserGuild(string userId) => $"guild:user_guild:{userId}";
-            public static string Invitations(string userId) => $"guild:invitations:{userId}";
-            public static string TopGuilds(int limit) => $"guild:top_guilds:{limit}";
-            public static string Rank(string guildId) => $"guild:rank:{guildId}";
+            public static string Search(string query, int limit) => $"social:search:{query}:{limit}";
+            public static string Friends(string userId) => $"social:friends:{userId}";
+            public static string FriendRequests(string userId) => $"social:friend_requests:{userId}";
         }
     }
 }

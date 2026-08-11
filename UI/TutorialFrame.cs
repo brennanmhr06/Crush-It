@@ -6,7 +6,6 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using MongoDB.Driver;
-using NAudio.Wave;
 using CrushIt.Data;
 using CrushIt.Core;
 using CrushIt.UI;
@@ -93,8 +92,10 @@ namespace CrushIt.UI
             this.MaximizeBox = false;
 
             this.FormClosed += (s, e) => {
+                SoundManager.StopBackgroundMusic();
                 if (Application.OpenForms.Count == 0)
                 {
+                    SoundManager.Cleanup();
                     Application.Exit();
                 }
             };
@@ -129,6 +130,7 @@ namespace CrushIt.UI
         {
             if (skipButtonRect.Contains(e.Location))
             {
+                SoundManager.PlaySound(SoundType.ButtonClick);
                 SkipTutorial();
             }
         }
@@ -196,29 +198,7 @@ namespace CrushIt.UI
             if (isProcessingBoard) return;
             isProcessingBoard = true;
 
-            _ = Task.Run(() =>
-            {
-                try
-                {
-                    string soundPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Sounds", "SwipeSound.mp3");
-                    if (File.Exists(soundPath))
-                    {
-                        using (var audioFile = new AudioFileReader(soundPath))
-                        using (var outputDevice = new WaveOutEvent())
-                        {
-                            outputDevice.Init(audioFile);
-                            outputDevice.Play();
-                            while (outputDevice.PlaybackState == PlaybackState.Playing)
-                            {
-                                System.Threading.Thread.Sleep(100);
-                            }
-                        }
-                    }
-                }
-                catch
-                {
-                }
-            });
+            SoundManager.PlaySound(SoundType.Swipe);
 
             await inputController.AnimateSwapAsync(p1, p2);
 

@@ -201,440 +201,186 @@ namespace CrushIt.API
             });
         }
 
-        // Guild management methods
-        public Task<CreateGuildResponse> CreateGuildAsync(CreateGuildRequest request)
+        // Social management methods
+        public Task<SendFriendRequestResponse> SendFriendRequestAsync(SendFriendRequestRequest request)
         {
             if (_enableLogging)
-                Console.WriteLine($"[Mock API] Creating guild '{request.Name}' for user {request.UserId}");
+                Console.WriteLine($"[Mock API] Sending friend request from {request.UserId} to {request.FriendId}");
 
-            var guildId = Guid.NewGuid().ToString();
-
-            return Task.FromResult(new CreateGuildResponse
+            return Task.FromResult(new SendFriendRequestResponse
             {
                 Success = true,
-                Message = "Mock guild created successfully",
-                Guild = new GuildDto
-                {
-                    Id = guildId,
-                    Name = request.Name,
-                    Description = request.Description,
-                    LeaderId = request.UserId,
-                    LeaderUsername = "MockUser",
-                    Members = new List<GuildMemberDto>
-                    {
-                        new GuildMemberDto
-                        {
-                            UserId = request.UserId,
-                            Username = "MockUser",
-                            Role = GuildRole.Leader,
-                            JoinedAt = DateTime.UtcNow,
-                            TotalMatches = 0,
-                            HighestScore = 0
-                        }
-                    },
-                    JoinStatus = GuildJoinStatus.Open,
-                    RequiredLevel = 1,
-                    TotalMemberScore = 0,
-                    TotalMemberMatches = 0,
-                    CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
-                },
-                RequiresManualReview = false
+                Message = "Mock friend request sent successfully",
+                RequestId = Guid.NewGuid().ToString()
             });
         }
 
-        public Task<JoinGuildResponse> JoinGuildAsync(JoinGuildRequest request)
+        public Task<AcceptFriendRequestResponse> AcceptFriendRequestAsync(AcceptFriendRequestRequest request)
         {
             if (_enableLogging)
-                Console.WriteLine($"[Mock API] User {request.UserId} joining guild {request.GuildId}");
+                Console.WriteLine($"[Mock API] Accepting friend request {request.RequestId} for user {request.UserId}");
 
-            return Task.FromResult(new JoinGuildResponse
+            return Task.FromResult(new AcceptFriendRequestResponse
             {
                 Success = true,
-                Message = "Mock guild joined successfully",
-                Guild = new GuildDto
+                Message = "Mock friend request accepted successfully",
+                Friend = new FriendDto
                 {
-                    Id = request.GuildId,
-                    Name = "Mock Guild",
-                    Description = "Mock description",
-                    LeaderId = "mock-leader",
-                    LeaderUsername = "MockLeader",
-                    Members = new List<GuildMemberDto>(),
-                    JoinStatus = GuildJoinStatus.Open,
-                    RequiredLevel = 1,
-                    TotalMemberScore = 1000,
-                    TotalMemberMatches = 100,
+                    Id = Guid.NewGuid().ToString(),
+                    UserId = request.UserId,
+                    FriendId = "mock-friend-id",
+                    FriendUsername = "MockFriend",
+                    Status = FriendStatus.Accepted,
                     CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
+                    UpdatedAt = DateTime.UtcNow,
+                    TotalMatches = 50,
+                    HighestScore = 5000,
+                    LastPlayed = DateTime.UtcNow
                 }
             });
         }
 
-        public Task<LeaveGuildResponse> LeaveGuildAsync(LeaveGuildRequest request)
+        public Task<DeclineFriendRequestResponse> DeclineFriendRequestAsync(DeclineFriendRequestRequest request)
         {
             if (_enableLogging)
-                Console.WriteLine($"[Mock API] User {request.UserId} leaving guild");
+                Console.WriteLine($"[Mock API] Declining friend request {request.RequestId} for user {request.UserId}");
 
-            return Task.FromResult(new LeaveGuildResponse
+            return Task.FromResult(new DeclineFriendRequestResponse
             {
                 Success = true,
-                Message = "Mock guild left successfully"
+                Message = "Mock friend request declined successfully"
             });
         }
 
-        public Task<GetGuildResponse> GetGuildAsync(GetGuildRequest request)
+        public Task<RemoveFriendResponse> RemoveFriendAsync(RemoveFriendRequest request)
         {
             if (_enableLogging)
-                Console.WriteLine($"[Mock API] Getting guild {request.GuildId}");
+                Console.WriteLine($"[Mock API] Removing friend {request.FriendId} for user {request.UserId}");
 
-            return Task.FromResult(new GetGuildResponse
+            return Task.FromResult(new RemoveFriendResponse
             {
                 Success = true,
-                Message = "Mock guild retrieved successfully",
-                Guild = new GuildDto
-                {
-                    Id = request.GuildId,
-                    Name = "Mock Guild",
-                    Description = "Mock description",
-                    LeaderId = "mock-leader",
-                    LeaderUsername = "MockLeader",
-                    Members = new List<GuildMemberDto>
-                    {
-                        new GuildMemberDto
-                        {
-                            UserId = "mock-leader",
-                            Username = "MockLeader",
-                            Role = GuildRole.Leader,
-                            JoinedAt = DateTime.UtcNow,
-                            TotalMatches = 100,
-                            HighestScore = 5000
-                        }
-                    },
-                    JoinStatus = GuildJoinStatus.Open,
-                    RequiredLevel = 1,
-                    TotalMemberScore = 5000,
-                    TotalMemberMatches = 100,
-                    CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
-                }
+                Message = "Mock friend removed successfully"
             });
         }
 
-        public Task<SearchGuildsResponse> SearchGuildsAsync(SearchGuildsRequest request)
+        public Task<SearchUsersResponse> SearchUsersAsync(SearchUsersRequest request)
         {
             if (_enableLogging)
-                Console.WriteLine($"[Mock API] Searching guilds with query '{request.Query}'");
+                Console.WriteLine($"[Mock API] Searching users with query '{request.Query}'");
 
-            return Task.FromResult(new SearchGuildsResponse
+            return Task.FromResult(new SearchUsersResponse
             {
                 Success = true,
-                Message = "Mock guild search completed",
-                Guilds = new List<GuildDto>
+                Message = "Mock user search completed",
+                Users = new List<UserProfileDto>
                 {
-                    new GuildDto
+                    new UserProfileDto
                     {
-                        Id = Guid.NewGuid().ToString(),
-                        Name = "Mock Guild 1",
-                        Description = "First mock guild",
-                        LeaderId = "leader1",
-                        LeaderUsername = "Leader1",
-                        Members = new List<GuildMemberDto>(),
-                        JoinStatus = GuildJoinStatus.Open,
-                        RequiredLevel = 1,
-                        TotalMemberScore = 1000,
-                        TotalMemberMatches = 50,
-                        CreatedAt = DateTime.UtcNow,
-                        MaxMembers = 20
+                        UserId = Guid.NewGuid().ToString(),
+                        Username = "MockUser1",
+                        TotalMatches = 100,
+                        HighestScore = 10000,
+                        Gold = 5000,
+                        AchievementsUnlocked = 15,
+                        CompletedLevels = 50,
+                        IsOnline = true,
+                        LastPlayed = DateTime.UtcNow
                     },
-                    new GuildDto
+                    new UserProfileDto
                     {
-                        Id = Guid.NewGuid().ToString(),
-                        Name = "Mock Guild 2",
-                        Description = "Second mock guild",
-                        LeaderId = "leader2",
-                        LeaderUsername = "Leader2",
-                        Members = new List<GuildMemberDto>(),
-                        JoinStatus = GuildJoinStatus.InviteOnly,
-                        RequiredLevel = 5,
-                        TotalMemberScore = 2500,
-                        TotalMemberMatches = 75,
-                        CreatedAt = DateTime.UtcNow,
-                        MaxMembers = 20
+                        UserId = Guid.NewGuid().ToString(),
+                        Username = "MockUser2",
+                        TotalMatches = 75,
+                        HighestScore = 7500,
+                        Gold = 3000,
+                        AchievementsUnlocked = 10,
+                        CompletedLevels = 35,
+                        IsOnline = false,
+                        LastPlayed = DateTime.UtcNow.AddDays(-1)
                     }
                 },
                 TotalCount = 2
             });
         }
 
-        public Task<GetUserGuildResponse> GetUserGuildAsync(GetUserGuildRequest request)
+        public Task<GetFriendsResponse> GetFriendsAsync(GetFriendsRequest request)
         {
             if (_enableLogging)
-                Console.WriteLine($"[Mock API] Getting guild for user {request.UserId}");
+                Console.WriteLine($"[Mock API] Getting friends for user {request.UserId}");
 
-            return Task.FromResult(new GetUserGuildResponse
+            return Task.FromResult(new GetFriendsResponse
             {
                 Success = true,
-                Message = "Mock user guild retrieved",
-                Guild = null // User not in a guild by default
-            });
-        }
-
-        public Task<UpdateGuildResponse> UpdateGuildAsync(UpdateGuildRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Updating guild {request.GuildId}");
-
-            return Task.FromResult(new UpdateGuildResponse
-            {
-                Success = true,
-                Message = "Mock guild updated successfully",
-                Guild = new GuildDto
+                Message = "Mock friends retrieved successfully",
+                Friends = new List<FriendDto>
                 {
-                    Id = request.GuildId,
-                    Name = "Updated Guild",
-                    Description = request.Description ?? "Updated description",
-                    LeaderId = "leader",
-                    LeaderUsername = "Leader",
-                    Members = new List<GuildMemberDto>(),
-                    JoinStatus = request.JoinStatus ?? GuildJoinStatus.Open,
-                    RequiredLevel = request.RequiredLevel ?? 1,
-                    TotalMemberScore = 1000,
-                    TotalMemberMatches = 50,
-                    CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
-                }
-            });
-        }
-
-        public Task<TransferLeadershipResponse> TransferLeadershipAsync(TransferLeadershipRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Transferring leadership in guild {request.GuildId} to {request.NewLeaderId}");
-
-            return Task.FromResult(new TransferLeadershipResponse
-            {
-                Success = true,
-                Message = "Mock leadership transferred successfully",
-                Guild = new GuildDto
-                {
-                    Id = request.GuildId,
-                    Name = "Mock Guild",
-                    Description = "Mock description",
-                    LeaderId = request.NewLeaderId,
-                    LeaderUsername = "NewLeader",
-                    Members = new List<GuildMemberDto>(),
-                    JoinStatus = GuildJoinStatus.Open,
-                    RequiredLevel = 1,
-                    TotalMemberScore = 1000,
-                    TotalMemberMatches = 50,
-                    CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
-                }
-            });
-        }
-
-        public Task<PromoteMemberResponse> PromoteMemberAsync(PromoteMemberRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Promoting member {request.MemberId} in guild {request.GuildId}");
-
-            return Task.FromResult(new PromoteMemberResponse
-            {
-                Success = true,
-                Message = "Mock member promoted successfully",
-                Guild = new GuildDto
-                {
-                    Id = request.GuildId,
-                    Name = "Mock Guild",
-                    Description = "Mock description",
-                    LeaderId = "leader",
-                    LeaderUsername = "Leader",
-                    Members = new List<GuildMemberDto>(),
-                    JoinStatus = GuildJoinStatus.Open,
-                    RequiredLevel = 1,
-                    TotalMemberScore = 1000,
-                    TotalMemberMatches = 50,
-                    CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
-                }
-            });
-        }
-
-        public Task<DemoteMemberResponse> DemoteMemberAsync(DemoteMemberRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Demoting member {request.MemberId} in guild {request.GuildId}");
-
-            return Task.FromResult(new DemoteMemberResponse
-            {
-                Success = true,
-                Message = "Mock member demoted successfully",
-                Guild = new GuildDto
-                {
-                    Id = request.GuildId,
-                    Name = "Mock Guild",
-                    Description = "Mock description",
-                    LeaderId = "leader",
-                    LeaderUsername = "Leader",
-                    Members = new List<GuildMemberDto>(),
-                    JoinStatus = GuildJoinStatus.Open,
-                    RequiredLevel = 1,
-                    TotalMemberScore = 1000,
-                    TotalMemberMatches = 50,
-                    CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
-                }
-            });
-        }
-
-        public Task<KickMemberResponse> KickMemberAsync(KickMemberRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Kicking member {request.MemberId} from guild {request.GuildId}");
-
-            return Task.FromResult(new KickMemberResponse
-            {
-                Success = true,
-                Message = "Mock member kicked successfully",
-                Guild = new GuildDto
-                {
-                    Id = request.GuildId,
-                    Name = "Mock Guild",
-                    Description = "Mock description",
-                    LeaderId = "leader",
-                    LeaderUsername = "Leader",
-                    Members = new List<GuildMemberDto>(),
-                    JoinStatus = GuildJoinStatus.Open,
-                    RequiredLevel = 1,
-                    TotalMemberScore = 1000,
-                    TotalMemberMatches = 50,
-                    CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
-                }
-            });
-        }
-
-        public Task<SendGuildInvitationResponse> SendGuildInvitationAsync(SendGuildInvitationRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Sending guild invitation to {request.InviteeId}");
-
-            return Task.FromResult(new SendGuildInvitationResponse
-            {
-                Success = true,
-                Message = "Mock guild invitation sent successfully",
-                InvitationId = Guid.NewGuid().ToString()
-            });
-        }
-
-        public Task<AcceptGuildInvitationResponse> AcceptGuildInvitationAsync(AcceptGuildInvitationRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Accepting guild invitation {request.InvitationId}");
-
-            return Task.FromResult(new AcceptGuildInvitationResponse
-            {
-                Success = true,
-                Message = "Mock guild invitation accepted successfully",
-                Guild = new GuildDto
-                {
-                    Id = Guid.NewGuid().ToString(),
-                    Name = "Mock Guild",
-                    Description = "Mock description",
-                    LeaderId = "leader",
-                    LeaderUsername = "Leader",
-                    Members = new List<GuildMemberDto>(),
-                    JoinStatus = GuildJoinStatus.Open,
-                    RequiredLevel = 1,
-                    TotalMemberScore = 1000,
-                    TotalMemberMatches = 50,
-                    CreatedAt = DateTime.UtcNow,
-                    MaxMembers = 20
-                }
-            });
-        }
-
-        public Task<DeclineGuildInvitationResponse> DeclineGuildInvitationAsync(DeclineGuildInvitationRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Declining guild invitation {request.InvitationId}");
-
-            return Task.FromResult(new DeclineGuildInvitationResponse
-            {
-                Success = true,
-                Message = "Mock guild invitation declined successfully"
-            });
-        }
-
-        public Task<GetGuildInvitationsResponse> GetGuildInvitationsAsync(GetGuildInvitationsRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Getting guild invitations for user {request.UserId}");
-
-            return Task.FromResult(new GetGuildInvitationsResponse
-            {
-                Success = true,
-                Message = "Mock guild invitations retrieved",
-                Invitations = new List<GuildInvitationDto>()
-            });
-        }
-
-        public Task<GetTopGuildsResponse> GetTopGuildsAsync(GetTopGuildsRequest request)
-        {
-            if (_enableLogging)
-                Console.WriteLine($"[Mock API] Getting top {request.Limit} guilds");
-
-            return Task.FromResult(new GetTopGuildsResponse
-            {
-                Success = true,
-                Message = "Mock top guilds retrieved",
-                Guilds = new List<GuildDto>
-                {
-                    new GuildDto
+                    new FriendDto
                     {
                         Id = Guid.NewGuid().ToString(),
-                        Name = "Champion Guild",
-                        Description = "Top ranked guild",
-                        LeaderId = "champion",
-                        LeaderUsername = "Champion",
-                        Members = new List<GuildMemberDto>(),
-                        JoinStatus = GuildJoinStatus.Open,
-                        RequiredLevel = 10,
-                        TotalMemberScore = 10000,
-                        TotalMemberMatches = 500,
-                        CreatedAt = DateTime.UtcNow,
-                        MaxMembers = 20
+                        UserId = request.UserId,
+                        FriendId = "friend1-id",
+                        FriendUsername = "Friend1",
+                        Status = FriendStatus.Accepted,
+                        CreatedAt = DateTime.UtcNow.AddDays(-30),
+                        UpdatedAt = DateTime.UtcNow,
+                        TotalMatches = 25,
+                        HighestScore = 3000,
+                        LastPlayed = DateTime.UtcNow
                     },
-                    new GuildDto
+                    new FriendDto
                     {
                         Id = Guid.NewGuid().ToString(),
-                        Name = "Elite Guild",
-                        Description = "Second ranked guild",
-                        LeaderId = "elite",
-                        LeaderUsername = "Elite",
-                        Members = new List<GuildMemberDto>(),
-                        JoinStatus = GuildJoinStatus.InviteOnly,
-                        RequiredLevel = 5,
-                        TotalMemberScore = 7500,
-                        TotalMemberMatches = 300,
-                        CreatedAt = DateTime.UtcNow,
-                        MaxMembers = 20
+                        UserId = request.UserId,
+                        FriendId = "friend2-id",
+                        FriendUsername = "Friend2",
+                        Status = FriendStatus.Accepted,
+                        CreatedAt = DateTime.UtcNow.AddDays(-15),
+                        UpdatedAt = DateTime.UtcNow,
+                        TotalMatches = 10,
+                        HighestScore = 1500,
+                        LastPlayed = DateTime.UtcNow.AddDays(-2)
                     }
                 }
             });
         }
 
-        public Task<GetGuildRankResponse> GetGuildRankAsync(GetGuildRankRequest request)
+        public Task<GetFriendRequestsResponse> GetFriendRequestsAsync(GetFriendRequestsRequest request)
         {
             if (_enableLogging)
-                Console.WriteLine($"[Mock API] Getting rank for guild {request.GuildId}");
+                Console.WriteLine($"[Mock API] Getting friend requests for user {request.UserId}");
 
-            return Task.FromResult(new GetGuildRankResponse
+            return Task.FromResult(new GetFriendRequestsResponse
             {
                 Success = true,
-                Message = "Mock guild rank retrieved",
-                Rank = 1,
-                TotalGuilds = 100
+                Message = "Mock friend requests retrieved",
+                Requests = new List<FriendRequestDto>
+                {
+                    new FriendRequestDto
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        FromUserId = "requester1-id",
+                        FromUsername = "Requester1",
+                        ToUserId = request.UserId,
+                        ToUsername = "CurrentUser",
+                        Status = FriendStatus.Pending,
+                        CreatedAt = DateTime.UtcNow.AddHours(-2),
+                        ExpiresAt = DateTime.UtcNow.AddDays(7),
+                        Message = "Hey, want to be friends?"
+                    },
+                    new FriendRequestDto
+                    {
+                        Id = Guid.NewGuid().ToString(),
+                        FromUserId = "requester2-id",
+                        FromUsername = "Requester2",
+                        ToUserId = request.UserId,
+                        ToUsername = "CurrentUser",
+                        Status = FriendStatus.Pending,
+                        CreatedAt = DateTime.UtcNow.AddHours(-5),
+                        ExpiresAt = DateTime.UtcNow.AddDays(7),
+                        Message = "Let's play together!"
+                    }
+                }
             });
         }
     }

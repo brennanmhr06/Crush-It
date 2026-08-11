@@ -714,112 +714,145 @@ namespace CrushIt.API
             return _rateLimiter;
         }
 
-        // Guild management methods
-        public async Task<CreateGuildResponse> CreateGuildAsync(CreateGuildRequest request)
+        // Social management methods
+        public async Task<SendFriendRequestResponse> SendFriendRequestAsync(SendFriendRequestRequest request)
         {
             try
             {
                 if (!_rateLimiter.TryRequest(request.UserId))
                 {
-                    return new CreateGuildResponse { Success = false, Message = "Rate limit exceeded" };
+                    return new SendFriendRequestResponse { Success = false, Message = "Rate limit exceeded" };
                 }
 
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/create", content));
+                    _httpClient.PostAsync($"{_apiBaseUrl}/social/send-friend-request", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new CreateGuildResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                    return new SendFriendRequestResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
                 var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<CreateGuildResponse>(responseJson);
+                var result = System.Text.Json.JsonSerializer.Deserialize<SendFriendRequestResponse>(responseJson);
 
-                return result ?? new CreateGuildResponse { Success = false, Message = "Failed to parse response" };
+                return result ?? new SendFriendRequestResponse { Success = false, Message = "Failed to parse response" };
             }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Create guild error: {ex.Message}");
-                return new CreateGuildResponse { Success = false, Message = ex.Message };
+                    Console.WriteLine($"Send friend request error: {ex.Message}");
+                return new SendFriendRequestResponse { Success = false, Message = ex.Message };
             }
         }
 
-        public async Task<JoinGuildResponse> JoinGuildAsync(JoinGuildRequest request)
+        public async Task<AcceptFriendRequestResponse> AcceptFriendRequestAsync(AcceptFriendRequestRequest request)
         {
             try
             {
                 if (!_rateLimiter.TryRequest(request.UserId))
                 {
-                    return new JoinGuildResponse { Success = false, Message = "Rate limit exceeded" };
+                    return new AcceptFriendRequestResponse { Success = false, Message = "Rate limit exceeded" };
                 }
 
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/join", content));
+                    _httpClient.PostAsync($"{_apiBaseUrl}/social/accept-friend-request", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new JoinGuildResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                    return new AcceptFriendRequestResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
                 var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<JoinGuildResponse>(responseJson);
+                var result = System.Text.Json.JsonSerializer.Deserialize<AcceptFriendRequestResponse>(responseJson);
 
-                return result ?? new JoinGuildResponse { Success = false, Message = "Failed to parse response" };
+                return result ?? new AcceptFriendRequestResponse { Success = false, Message = "Failed to parse response" };
             }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Join guild error: {ex.Message}");
-                return new JoinGuildResponse { Success = false, Message = ex.Message };
+                    Console.WriteLine($"Accept friend request error: {ex.Message}");
+                return new AcceptFriendRequestResponse { Success = false, Message = ex.Message };
             }
         }
 
-        public async Task<LeaveGuildResponse> LeaveGuildAsync(LeaveGuildRequest request)
+        public async Task<DeclineFriendRequestResponse> DeclineFriendRequestAsync(DeclineFriendRequestRequest request)
         {
             try
             {
                 if (!_rateLimiter.TryRequest(request.UserId))
                 {
-                    return new LeaveGuildResponse { Success = false, Message = "Rate limit exceeded" };
+                    return new DeclineFriendRequestResponse { Success = false, Message = "Rate limit exceeded" };
                 }
 
                 var json = System.Text.Json.JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/leave", content));
+                    _httpClient.PostAsync($"{_apiBaseUrl}/social/decline-friend-request", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new LeaveGuildResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                    return new DeclineFriendRequestResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
                 var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<LeaveGuildResponse>(responseJson);
+                var result = System.Text.Json.JsonSerializer.Deserialize<DeclineFriendRequestResponse>(responseJson);
 
-                return result ?? new LeaveGuildResponse { Success = false, Message = "Failed to parse response" };
+                return result ?? new DeclineFriendRequestResponse { Success = false, Message = "Failed to parse response" };
             }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Leave guild error: {ex.Message}");
-                return new LeaveGuildResponse { Success = false, Message = ex.Message };
+                    Console.WriteLine($"Decline friend request error: {ex.Message}");
+                return new DeclineFriendRequestResponse { Success = false, Message = ex.Message };
             }
         }
 
-        public async Task<GetGuildResponse> GetGuildAsync(GetGuildRequest request)
+        public async Task<RemoveFriendResponse> RemoveFriendAsync(RemoveFriendRequest request)
         {
             try
             {
-                var cacheKey = CacheKeys.Guilds.Guild(request.GuildId);
-                var cached = _cache.Get<GetGuildResponse>(cacheKey);
+                if (!_rateLimiter.TryRequest(request.UserId))
+                {
+                    return new RemoveFriendResponse { Success = false, Message = "Rate limit exceeded" };
+                }
+
+                var json = System.Text.Json.JsonSerializer.Serialize(request);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
+                    _httpClient.PostAsync($"{_apiBaseUrl}/social/remove-friend", content));
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return new RemoveFriendResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                }
+
+                var responseJson = await response.Content.ReadAsStringAsync();
+                var result = System.Text.Json.JsonSerializer.Deserialize<RemoveFriendResponse>(responseJson);
+
+                return result ?? new RemoveFriendResponse { Success = false, Message = "Failed to parse response" };
+            }
+            catch (Exception ex)
+            {
+                if (_config.EnableLogging)
+                    Console.WriteLine($"Remove friend error: {ex.Message}");
+                return new RemoveFriendResponse { Success = false, Message = ex.Message };
+            }
+        }
+
+        public async Task<SearchUsersResponse> SearchUsersAsync(SearchUsersRequest request)
+        {
+            try
+            {
+                var cacheKey = CacheKeys.Social.Search(request.Query, request.Limit);
+                var cached = _cache.Get<SearchUsersResponse>(cacheKey);
                 if (cached != null)
                 {
                     return cached;
@@ -829,77 +862,37 @@ namespace CrushIt.API
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/get", content));
+                    _httpClient.PostAsync($"{_apiBaseUrl}/social/search-users", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new GetGuildResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                    return new SearchUsersResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
                 var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<GetGuildResponse>(responseJson);
-
-                if (result != null)
-                {
-                    _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
-                }
-
-                return result ?? new GetGuildResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Get guild error: {ex.Message}");
-                return new GetGuildResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<SearchGuildsResponse> SearchGuildsAsync(SearchGuildsRequest request)
-        {
-            try
-            {
-                var cacheKey = CacheKeys.Guilds.Search(request.Query, request.Limit);
-                var cached = _cache.Get<SearchGuildsResponse>(cacheKey);
-                if (cached != null)
-                {
-                    return cached;
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/search", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new SearchGuildsResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<SearchGuildsResponse>(responseJson);
+                var result = System.Text.Json.JsonSerializer.Deserialize<SearchUsersResponse>(responseJson);
 
                 if (result != null)
                 {
                     _cache.Set(cacheKey, result, TimeSpan.FromMinutes(2));
                 }
 
-                return result ?? new SearchGuildsResponse { Success = false, Message = "Failed to parse response" };
+                return result ?? new SearchUsersResponse { Success = false, Message = "Failed to parse response" };
             }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Search guilds error: {ex.Message}");
-                return new SearchGuildsResponse { Success = false, Message = ex.Message };
+                    Console.WriteLine($"Search users error: {ex.Message}");
+                return new SearchUsersResponse { Success = false, Message = ex.Message };
             }
         }
 
-        public async Task<GetUserGuildResponse> GetUserGuildAsync(GetUserGuildRequest request)
+        public async Task<GetFriendsResponse> GetFriendsAsync(GetFriendsRequest request)
         {
             try
             {
-                var cacheKey = CacheKeys.Guilds.UserGuild(request.UserId);
-                var cached = _cache.Get<GetUserGuildResponse>(cacheKey);
+                var cacheKey = CacheKeys.Social.Friends(request.UserId);
+                var cached = _cache.Get<GetFriendsResponse>(cacheKey);
                 if (cached != null)
                 {
                     return cached;
@@ -909,337 +902,37 @@ namespace CrushIt.API
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/user-guild", content));
+                    _httpClient.PostAsync($"{_apiBaseUrl}/social/get-friends", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new GetUserGuildResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                    return new GetFriendsResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
                 var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<GetUserGuildResponse>(responseJson);
+                var result = System.Text.Json.JsonSerializer.Deserialize<GetFriendsResponse>(responseJson);
 
                 if (result != null)
                 {
                     _cache.Set(cacheKey, result, TimeSpan.FromMinutes(3));
                 }
 
-                return result ?? new GetUserGuildResponse { Success = false, Message = "Failed to parse response" };
+                return result ?? new GetFriendsResponse { Success = false, Message = "Failed to parse response" };
             }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Get user guild error: {ex.Message}");
-                return new GetUserGuildResponse { Success = false, Message = ex.Message };
+                    Console.WriteLine($"Get friends error: {ex.Message}");
+                return new GetFriendsResponse { Success = false, Message = ex.Message };
             }
         }
 
-        public async Task<UpdateGuildResponse> UpdateGuildAsync(UpdateGuildRequest request)
+        public async Task<GetFriendRequestsResponse> GetFriendRequestsAsync(GetFriendRequestsRequest request)
         {
             try
             {
-                if (!_rateLimiter.TryRequest(request.UserId))
-                {
-                    return new UpdateGuildResponse { Success = false, Message = "Rate limit exceeded" };
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/update", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new UpdateGuildResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<UpdateGuildResponse>(responseJson);
-
-                // Invalidate cache for this guild
-                if (result?.Success == true)
-                {
-                    _cache.Remove(CacheKeys.Guilds.Guild(request.GuildId));
-                }
-
-                return result ?? new UpdateGuildResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Update guild error: {ex.Message}");
-                return new UpdateGuildResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<TransferLeadershipResponse> TransferLeadershipAsync(TransferLeadershipRequest request)
-        {
-            try
-            {
-                if (!_rateLimiter.TryRequest(request.UserId))
-                {
-                    return new TransferLeadershipResponse { Success = false, Message = "Rate limit exceeded" };
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/transfer-leadership", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new TransferLeadershipResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<TransferLeadershipResponse>(responseJson);
-
-                // Invalidate cache for this guild
-                if (result?.Success == true)
-                {
-                    _cache.Remove(CacheKeys.Guilds.Guild(request.GuildId));
-                }
-
-                return result ?? new TransferLeadershipResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Transfer leadership error: {ex.Message}");
-                return new TransferLeadershipResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<PromoteMemberResponse> PromoteMemberAsync(PromoteMemberRequest request)
-        {
-            try
-            {
-                if (!_rateLimiter.TryRequest(request.UserId))
-                {
-                    return new PromoteMemberResponse { Success = false, Message = "Rate limit exceeded" };
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/promote", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new PromoteMemberResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<PromoteMemberResponse>(responseJson);
-
-                // Invalidate cache for this guild
-                if (result?.Success == true)
-                {
-                    _cache.Remove(CacheKeys.Guilds.Guild(request.GuildId));
-                }
-
-                return result ?? new PromoteMemberResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Promote member error: {ex.Message}");
-                return new PromoteMemberResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<DemoteMemberResponse> DemoteMemberAsync(DemoteMemberRequest request)
-        {
-            try
-            {
-                if (!_rateLimiter.TryRequest(request.UserId))
-                {
-                    return new DemoteMemberResponse { Success = false, Message = "Rate limit exceeded" };
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/demote", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new DemoteMemberResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<DemoteMemberResponse>(responseJson);
-
-                // Invalidate cache for this guild
-                if (result?.Success == true)
-                {
-                    _cache.Remove(CacheKeys.Guilds.Guild(request.GuildId));
-                }
-
-                return result ?? new DemoteMemberResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Demote member error: {ex.Message}");
-                return new DemoteMemberResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<KickMemberResponse> KickMemberAsync(KickMemberRequest request)
-        {
-            try
-            {
-                if (!_rateLimiter.TryRequest(request.UserId))
-                {
-                    return new KickMemberResponse { Success = false, Message = "Rate limit exceeded" };
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/kick", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new KickMemberResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<KickMemberResponse>(responseJson);
-
-                // Invalidate cache for this guild
-                if (result?.Success == true)
-                {
-                    _cache.Remove(CacheKeys.Guilds.Guild(request.GuildId));
-                }
-
-                return result ?? new KickMemberResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Kick member error: {ex.Message}");
-                return new KickMemberResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<SendGuildInvitationResponse> SendGuildInvitationAsync(SendGuildInvitationRequest request)
-        {
-            try
-            {
-                if (!_rateLimiter.TryRequest(request.UserId))
-                {
-                    return new SendGuildInvitationResponse { Success = false, Message = "Rate limit exceeded" };
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/invite", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new SendGuildInvitationResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<SendGuildInvitationResponse>(responseJson);
-
-                return result ?? new SendGuildInvitationResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Send guild invitation error: {ex.Message}");
-                return new SendGuildInvitationResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<AcceptGuildInvitationResponse> AcceptGuildInvitationAsync(AcceptGuildInvitationRequest request)
-        {
-            try
-            {
-                if (!_rateLimiter.TryRequest(request.UserId))
-                {
-                    return new AcceptGuildInvitationResponse { Success = false, Message = "Rate limit exceeded" };
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/accept-invitation", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new AcceptGuildInvitationResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<AcceptGuildInvitationResponse>(responseJson);
-
-                // Invalidate cache for user's guild
-                if (result?.Success == true)
-                {
-                    _cache.Remove(CacheKeys.Guilds.UserGuild(request.UserId));
-                }
-
-                return result ?? new AcceptGuildInvitationResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Accept guild invitation error: {ex.Message}");
-                return new AcceptGuildInvitationResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<DeclineGuildInvitationResponse> DeclineGuildInvitationAsync(DeclineGuildInvitationRequest request)
-        {
-            try
-            {
-                if (!_rateLimiter.TryRequest(request.UserId))
-                {
-                    return new DeclineGuildInvitationResponse { Success = false, Message = "Rate limit exceeded" };
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/decline-invitation", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new DeclineGuildInvitationResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<DeclineGuildInvitationResponse>(responseJson);
-
-                return result ?? new DeclineGuildInvitationResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Decline guild invitation error: {ex.Message}");
-                return new DeclineGuildInvitationResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<GetGuildInvitationsResponse> GetGuildInvitationsAsync(GetGuildInvitationsRequest request)
-        {
-            try
-            {
-                var cacheKey = CacheKeys.Guilds.Invitations(request.UserId);
-                var cached = _cache.Get<GetGuildInvitationsResponse>(cacheKey);
+                var cacheKey = CacheKeys.Social.FriendRequests(request.UserId);
+                var cached = _cache.Get<GetFriendRequestsResponse>(cacheKey);
                 if (cached != null)
                 {
                     return cached;
@@ -1249,108 +942,28 @@ namespace CrushIt.API
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
                 var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/invitations", content));
+                    _httpClient.PostAsync($"{_apiBaseUrl}/social/get-friend-requests", content));
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    return new GetGuildInvitationsResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
+                    return new GetFriendRequestsResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
                 var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<GetGuildInvitationsResponse>(responseJson);
+                var result = System.Text.Json.JsonSerializer.Deserialize<GetFriendRequestsResponse>(responseJson);
 
                 if (result != null)
                 {
-                    _cache.Set(cacheKey, result, TimeSpan.FromMinutes(1));
+                    _cache.Set(cacheKey, result, TimeSpan.FromMinutes(3));
                 }
 
-                return result ?? new GetGuildInvitationsResponse { Success = false, Message = "Failed to parse response" };
+                return result ?? new GetFriendRequestsResponse { Success = false, Message = "Failed to parse response" };
             }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Get guild invitations error: {ex.Message}");
-                return new GetGuildInvitationsResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<GetTopGuildsResponse> GetTopGuildsAsync(GetTopGuildsRequest request)
-        {
-            try
-            {
-                var cacheKey = CacheKeys.Guilds.TopGuilds(request.Limit);
-                var cached = _cache.Get<GetTopGuildsResponse>(cacheKey);
-                if (cached != null)
-                {
-                    return cached;
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/top", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new GetTopGuildsResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<GetTopGuildsResponse>(responseJson);
-
-                if (result != null)
-                {
-                    _cache.Set(cacheKey, result, TimeSpan.FromMinutes(5));
-                }
-
-                return result ?? new GetTopGuildsResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Get top guilds error: {ex.Message}");
-                return new GetTopGuildsResponse { Success = false, Message = ex.Message };
-            }
-        }
-
-        public async Task<GetGuildRankResponse> GetGuildRankAsync(GetGuildRankRequest request)
-        {
-            try
-            {
-                var cacheKey = CacheKeys.Guilds.Rank(request.GuildId);
-                var cached = _cache.Get<GetGuildRankResponse>(cacheKey);
-                if (cached != null)
-                {
-                    return cached;
-                }
-
-                var json = System.Text.Json.JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
-                var response = await _retryPolicy.ExecuteWithRetryAsync(() =>
-                    _httpClient.PostAsync($"{_apiBaseUrl}/guilds/rank", content));
-
-                if (!response.IsSuccessStatusCode)
-                {
-                    return new GetGuildRankResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
-                }
-
-                var responseJson = await response.Content.ReadAsStringAsync();
-                var result = System.Text.Json.JsonSerializer.Deserialize<GetGuildRankResponse>(responseJson);
-
-                if (result != null)
-                {
-                    _cache.Set(cacheKey, result, TimeSpan.FromMinutes(10));
-                }
-
-                return result ?? new GetGuildRankResponse { Success = false, Message = "Failed to parse response" };
-            }
-            catch (Exception ex)
-            {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Get guild rank error: {ex.Message}");
-                return new GetGuildRankResponse { Success = false, Message = ex.Message };
+                    Console.WriteLine($"Get friend requests error: {ex.Message}");
+                return new GetFriendRequestsResponse { Success = false, Message = ex.Message };
             }
         }
     }

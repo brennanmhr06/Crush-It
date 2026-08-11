@@ -46,6 +46,30 @@ namespace CrushIt.UI
         public float RotationSpeed;
     }
 
+    public struct FloatingCandy
+    {
+        public float X, Y;
+        public float SpeedY, SpeedX;
+        public float Size;
+        public float Alpha;
+        public Color Color;
+        public float Rotation;
+        public float RotationSpeed;
+        public int Type; // 0 = circle, 1 = star, 2 = heart, 3 = diamond
+    }
+
+    public struct WaveParticle
+    {
+        public float X, Y;
+        public float BaseX, BaseY;
+        public float Size;
+        public float Alpha;
+        public Color Color;
+        public float Phase;
+        public float PhaseSpeed;
+        public float Amplitude;
+    }
+
     public class LoadingForm : Form
     {
         private System.Windows.Forms.Timer animationTimer = null!;
@@ -58,6 +82,8 @@ namespace CrushIt.UI
         private List<Particle> bursts = new List<Particle>();
         private List<CandyOrbiter> orbiters = new List<CandyOrbiter>();
         private List<Sparkle> sparkles = new List<Sparkle>();
+        private List<FloatingCandy> floatingCandies = new List<FloatingCandy>();
+        private List<WaveParticle> waveParticles = new List<WaveParticle>();
         private Random rand = new Random();
 
         private string currentStatusText = "READYING CANDIES...";
@@ -97,7 +123,7 @@ namespace CrushIt.UI
             InitParticles();
 
 
-            SoundHelper.StartBackgroundMusic();
+            SoundManager.StartBackgroundMusic();
 
 
             MobileHelper.ApplyMobileScaling(this);
@@ -122,7 +148,8 @@ namespace CrushIt.UI
 
         private void InitParticles()
         {
-            for (int i = 0; i < 150; i++)
+            // Increase background particles from 150 to 300
+            for (int i = 0; i < 300; i++)
             {
                 particles.Add(new Particle
                 {
@@ -138,13 +165,13 @@ namespace CrushIt.UI
                 });
             }
 
-            // Initialize orbiting candies around the title
-            for (int i = 0; i < 12; i++)
+            // Increase orbiting candies from 12 to 20
+            for (int i = 0; i < 20; i++)
             {
                 float baseSize = rand.Next(15, 28);
                 var orbiter = new CandyOrbiter
                 {
-                    Angle = (float)(i * Math.PI / 6),
+                    Angle = (float)(i * Math.PI / 10),
                     Radius = 200 + rand.Next(-30, 30),
                     Speed = (float)(rand.NextDouble() * 0.025 + 0.015) * (rand.Next(0, 2) == 0 ? 1 : -1),
                     Size = baseSize,
@@ -160,11 +187,11 @@ namespace CrushIt.UI
                 orbiters.Add(orbiter);
             }
 
-            // Initialize sparkles
+            // Increase sparkles from 15 to 40
             int screenWidth = Screen.PrimaryScreen.WorkingArea.Width;
             int screenHeight = Screen.PrimaryScreen.WorkingArea.Height;
             
-            for (int i = 0; i < 15; i++)
+            for (int i = 0; i < 40; i++)
             {
                 sparkles.Add(new Sparkle
                 {
@@ -174,6 +201,44 @@ namespace CrushIt.UI
                     Alpha = rand.Next(100, 200),
                     Rotation = rand.Next(0, 360),
                     RotationSpeed = (float)(rand.NextDouble() * 2 - 1)
+                });
+            }
+
+            // Add new floating candies
+            for (int i = 0; i < 50; i++)
+            {
+                floatingCandies.Add(new FloatingCandy
+                {
+                    X = rand.Next(0, 550),
+                    Y = rand.Next(0, 700),
+                    SpeedY = (float)(rand.NextDouble() * -1.5 - 0.3),
+                    SpeedX = (float)(rand.NextDouble() * 0.8 - 0.4),
+                    Size = rand.Next(8, 20),
+                    Alpha = rand.Next(80, 200),
+                    Color = GetRandomCandyColor(),
+                    Rotation = rand.Next(0, 360),
+                    RotationSpeed = (float)(rand.NextDouble() * 4 - 2),
+                    Type = rand.Next(0, 4)
+                });
+            }
+
+            // Add new wave particles
+            for (int i = 0; i < 80; i++)
+            {
+                float baseX = rand.Next(0, 550);
+                float baseY = rand.Next(0, 700);
+                waveParticles.Add(new WaveParticle
+                {
+                    X = baseX,
+                    Y = baseY,
+                    BaseX = baseX,
+                    BaseY = baseY,
+                    Size = rand.Next(4, 12),
+                    Alpha = rand.Next(50, 150),
+                    Color = GetRandomCandyColor(),
+                    Phase = rand.Next(0, 100),
+                    PhaseSpeed = (float)(rand.NextDouble() * 0.05 + 0.02),
+                    Amplitude = rand.Next(10, 30)
                 });
             }
         }
@@ -629,6 +694,34 @@ namespace CrushIt.UI
                     bursts[i] = p;
             }
 
+            // Update floating candies
+            for (int i = 0; i < floatingCandies.Count; i++)
+            {
+                var fc = floatingCandies[i];
+                fc.Y += fc.SpeedY;
+                fc.X += fc.SpeedX;
+                fc.Rotation += fc.RotationSpeed;
+
+                if (fc.Y < -30)
+                {
+                    fc.Y = 730;
+                    fc.X = rand.Next(0, 550);
+                }
+                if (fc.X < -30) fc.X = 580;
+                if (fc.X > 580) fc.X = -30;
+                floatingCandies[i] = fc;
+            }
+
+            // Update wave particles
+            for (int i = 0; i < waveParticles.Count; i++)
+            {
+                var wp = waveParticles[i];
+                wp.Phase += wp.PhaseSpeed;
+                wp.X = wp.BaseX + (float)(Math.Sin(wp.Phase) * wp.Amplitude);
+                wp.Y = wp.BaseY + (float)(Math.Cos(wp.Phase * 0.7f) * wp.Amplitude * 0.5f);
+                waveParticles[i] = wp;
+            }
+
             this.Invalidate();
         }
 
@@ -683,6 +776,54 @@ namespace CrushIt.UI
                 using (SolidBrush sparkleBrush = new SolidBrush(Color.FromArgb((int)s.Alpha, 255, 255, 200)))
                 {
                     DrawStar(g, s.X, s.Y, s.Size / 2, s.Size / 4, 4, sparkleBrush);
+                }
+            }
+
+            // Draw floating candies
+            foreach (var fc in floatingCandies)
+            {
+                g.TranslateTransform(fc.X, fc.Y);
+                g.RotateTransform(fc.Rotation);
+                
+                using (SolidBrush fcBrush = new SolidBrush(Color.FromArgb((int)fc.Alpha, fc.Color)))
+                {
+                    if (fc.Type == 0) // Circle
+                    {
+                        g.FillEllipse(fcBrush, -fc.Size / 2, -fc.Size / 2, fc.Size, fc.Size);
+                    }
+                    else if (fc.Type == 1) // Star
+                    {
+                        DrawStar(g, 0, 0, fc.Size / 2, fc.Size / 4, 5, fcBrush);
+                    }
+                    else if (fc.Type == 2) // Heart
+                    {
+                        DrawHeart(g, 0, 0, fc.Size, fcBrush);
+                    }
+                    else // Diamond
+                    {
+                        PointF[] diamond = new PointF[]
+                        {
+                            new PointF(0, -fc.Size / 2),
+                            new PointF(fc.Size / 2, 0),
+                            new PointF(0, fc.Size / 2),
+                            new PointF(-fc.Size / 2, 0)
+                        };
+                        g.FillPolygon(fcBrush, diamond);
+                    }
+                }
+                
+                g.ResetTransform();
+            }
+
+            // Draw wave particles
+            foreach (var wp in waveParticles)
+            {
+                float waveAlpha = wp.Alpha + (float)(30 * Math.Sin(pulsePhase * 0.05 + wp.Phase));
+                waveAlpha = Math.Max(30, Math.Min(255, waveAlpha));
+                
+                using (SolidBrush wpBrush = new SolidBrush(Color.FromArgb((int)waveAlpha, wp.Color)))
+                {
+                    g.FillEllipse(wpBrush, wp.X - wp.Size / 2, wp.Y - wp.Size / 2, wp.Size, wp.Size);
                 }
             }
 

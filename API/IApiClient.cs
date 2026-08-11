@@ -23,24 +23,14 @@ namespace CrushIt.API
         Task<UsageStatsResponse> SubmitUsageStatisticsAsync(UsageStatsRequest request);
         Task<HealthCheckResponse> CheckApiHealthAsync();
 
-        // Guild management methods
-        Task<CreateGuildResponse> CreateGuildAsync(CreateGuildRequest request);
-        Task<JoinGuildResponse> JoinGuildAsync(JoinGuildRequest request);
-        Task<LeaveGuildResponse> LeaveGuildAsync(LeaveGuildRequest request);
-        Task<GetGuildResponse> GetGuildAsync(GetGuildRequest request);
-        Task<SearchGuildsResponse> SearchGuildsAsync(SearchGuildsRequest request);
-        Task<GetUserGuildResponse> GetUserGuildAsync(GetUserGuildRequest request);
-        Task<UpdateGuildResponse> UpdateGuildAsync(UpdateGuildRequest request);
-        Task<TransferLeadershipResponse> TransferLeadershipAsync(TransferLeadershipRequest request);
-        Task<PromoteMemberResponse> PromoteMemberAsync(PromoteMemberRequest request);
-        Task<DemoteMemberResponse> DemoteMemberAsync(DemoteMemberRequest request);
-        Task<KickMemberResponse> KickMemberAsync(KickMemberRequest request);
-        Task<SendGuildInvitationResponse> SendGuildInvitationAsync(SendGuildInvitationRequest request);
-        Task<AcceptGuildInvitationResponse> AcceptGuildInvitationAsync(AcceptGuildInvitationRequest request);
-        Task<DeclineGuildInvitationResponse> DeclineGuildInvitationAsync(DeclineGuildInvitationRequest request);
-        Task<GetGuildInvitationsResponse> GetGuildInvitationsAsync(GetGuildInvitationsRequest request);
-        Task<GetTopGuildsResponse> GetTopGuildsAsync(GetTopGuildsRequest request);
-        Task<GetGuildRankResponse> GetGuildRankAsync(GetGuildRankRequest request);
+        // Social management methods
+        Task<SendFriendRequestResponse> SendFriendRequestAsync(SendFriendRequestRequest request);
+        Task<AcceptFriendRequestResponse> AcceptFriendRequestAsync(AcceptFriendRequestRequest request);
+        Task<DeclineFriendRequestResponse> DeclineFriendRequestAsync(DeclineFriendRequestRequest request);
+        Task<RemoveFriendResponse> RemoveFriendAsync(RemoveFriendRequest request);
+        Task<SearchUsersResponse> SearchUsersAsync(SearchUsersRequest request);
+        Task<GetFriendsResponse> GetFriendsAsync(GetFriendsRequest request);
+        Task<GetFriendRequestsResponse> GetFriendRequestsAsync(GetFriendRequestsRequest request);
     }
 
     public class GameplayPattern
