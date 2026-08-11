@@ -630,6 +630,7 @@ namespace CrushIt.UI
                 {
                     var trail = orb.Trail[j];
                     trail.Alpha -= 8;
+                    trail.Alpha = Math.Max(0, trail.Alpha);
                     trail.Size *= 0.95f;
                     if (trail.Alpha <= 0)
                         orb.Trail.RemoveAt(j);
@@ -688,6 +689,7 @@ namespace CrushIt.UI
                 p.X += p.SpeedX;
                 p.Y += p.SpeedY;
                 p.Alpha -= 12;
+                p.Alpha = Math.Max(0, p.Alpha);
 
                 if (p.Alpha <= 0)
                     bursts.RemoveAt(i);
@@ -774,7 +776,8 @@ namespace CrushIt.UI
             // Draw sparkles
             foreach (var s in sparkles)
             {
-                using (SolidBrush sparkleBrush = new SolidBrush(Color.FromArgb((int)s.Alpha, 255, 255, 200)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)s.Alpha));
+                using (SolidBrush sparkleBrush = new SolidBrush(Color.FromArgb(clampedAlpha, 255, 255, 200)))
                 {
                     DrawStar(g, s.X, s.Y, s.Size / 2, s.Size / 4, 4, sparkleBrush);
                 }
@@ -786,7 +789,8 @@ namespace CrushIt.UI
                 g.TranslateTransform(fc.X, fc.Y);
                 g.RotateTransform(fc.Rotation);
                 
-                using (SolidBrush fcBrush = new SolidBrush(Color.FromArgb((int)fc.Alpha, fc.Color)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)fc.Alpha));
+                using (SolidBrush fcBrush = new SolidBrush(Color.FromArgb(clampedAlpha, fc.Color)))
                 {
                     if (fc.Type == 0) // Circle
                     {
@@ -821,8 +825,9 @@ namespace CrushIt.UI
             {
                 float waveAlpha = wp.Alpha + (float)(30 * Math.Sin(pulsePhase * 0.05 + wp.Phase));
                 waveAlpha = Math.Max(30, Math.Min(255, waveAlpha));
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)waveAlpha));
                 
-                using (SolidBrush wpBrush = new SolidBrush(Color.FromArgb((int)waveAlpha, wp.Color)))
+                using (SolidBrush wpBrush = new SolidBrush(Color.FromArgb(clampedAlpha, wp.Color)))
                 {
                     g.FillEllipse(wpBrush, wp.X - wp.Size / 2, wp.Y - wp.Size / 2, wp.Size, wp.Size);
                 }
@@ -839,7 +844,8 @@ namespace CrushIt.UI
                 // Draw trail particles
                 foreach (var trail in orb.Trail)
                 {
-                    using (SolidBrush trailBrush = new SolidBrush(Color.FromArgb((int)trail.Alpha, trail.Color)))
+                    int clampedAlpha = Math.Max(0, Math.Min(255, (int)trail.Alpha));
+                    using (SolidBrush trailBrush = new SolidBrush(Color.FromArgb(clampedAlpha, trail.Color)))
                     {
                         g.FillEllipse(trailBrush, trail.X, trail.Y, trail.Size, trail.Size);
                     }
@@ -878,6 +884,7 @@ namespace CrushIt.UI
                 // Add glow effect with pulsing
                 float glowSize = orb.Size * 1.5f;
                 float glowAlpha = 60 + (float)(30 * Math.Sin(pulsePhase * 0.1 + orb.PulsePhase));
+                glowAlpha = Math.Max(0, Math.Min(255, glowAlpha));
                 using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb((int)glowAlpha, orb.Color)))
                 {
                     g.FillEllipse(glowBrush, orbX - glowSize / 2, orbY - glowSize / 2, glowSize, glowSize);
@@ -901,6 +908,7 @@ namespace CrushIt.UI
 
 
             int shadowPulseAlpha = 90 + (int)(20 * Math.Sin(pulsePhase * Math.PI / 60));
+            shadowPulseAlpha = Math.Max(0, Math.Min(255, shadowPulseAlpha));
             using (SolidBrush shadow = new SolidBrush(Color.FromArgb(shadowPulseAlpha, 0, 0, 0)))
             {
                 g.FillRoundedRectangle(shadow, new Rectangle(55, logoY + 8, 436, 125), 26);
@@ -966,6 +974,7 @@ namespace CrushIt.UI
 
 
             int barShadowAlpha = 100 + (int)(15 * Math.Sin(pulsePhase * Math.PI / 60));
+            barShadowAlpha = Math.Max(0, Math.Min(255, barShadowAlpha));
             using (SolidBrush shadow = new SolidBrush(Color.FromArgb(barShadowAlpha, 0, 0, 0)))
             {
                 g.FillRoundedRectangle(shadow, new Rectangle(barX + 3, barY + 5, barWidth, barHeight), 18);
@@ -1076,7 +1085,8 @@ namespace CrushIt.UI
 
             foreach (var p in bursts)
             {
-                using (SolidBrush burstBrush = new SolidBrush(Color.FromArgb((int)p.Alpha, p.Color)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)p.Alpha));
+                using (SolidBrush burstBrush = new SolidBrush(Color.FromArgb(clampedAlpha, p.Color)))
                 {
                     if (p.Shape == 0) // Circle
                     {

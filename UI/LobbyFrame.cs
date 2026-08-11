@@ -471,6 +471,7 @@ namespace CrushIt.UI
                 int glowPulse = (int)(25 * Math.Sin(pulsePhase * Math.PI / 60));
                 int glowSize = isHovered ? 18 : 8;
                 int glowAlpha = isHovered ? 80 + glowPulse : 40 + glowPulse;
+                glowAlpha = Math.Max(0, Math.Min(255, glowAlpha));
                 using (SolidBrush glow = new SolidBrush(Color.FromArgb(glowAlpha, 255, 230, 130)))
                     g.FillEllipse(glow, x - glowSize, y - glowSize, size + glowSize * 2, size + glowSize * 2);
             }

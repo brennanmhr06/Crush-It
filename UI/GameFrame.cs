@@ -1662,6 +1662,7 @@ namespace CrushIt.UI
                 p.X += p.SpeedX;
                 p.Y += p.SpeedY;
                 p.Alpha -= 18;
+                p.Alpha = Math.Max(0, p.Alpha);
 
                 if (p.Alpha <= 0)
                     burstParticles.RemoveAt(i);
@@ -1767,7 +1768,8 @@ namespace CrushIt.UI
 
             foreach (var p in burstParticles)
             {
-                using (SolidBrush pb = new SolidBrush(Color.FromArgb((int)p.Alpha, p.ParticleColor)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)p.Alpha));
+                using (SolidBrush pb = new SolidBrush(Color.FromArgb(clampedAlpha, p.ParticleColor)))
                 {
                     g.FillRectangle(pb, p.X - p.Size / 2, p.Y - p.Size / 2, p.Size, p.Size);
                 }
@@ -1784,6 +1786,7 @@ namespace CrushIt.UI
                 int y2 = GridOffsetY + p2.Y * TileSize + TileSize / 2;
 
                 int pulseAlpha = 100 + (int)(80 * Math.Sin(hintAnimationPhase * Math.PI / 30));
+                pulseAlpha = Math.Max(0, Math.Min(255, pulseAlpha));
                 using (SolidBrush hintGlow = new SolidBrush(Color.FromArgb(pulseAlpha, 255, 255, 100)))
                 {
                     g.FillEllipse(hintGlow, x1 - TileSize/2 - 5, y1 - TileSize/2 - 5, TileSize + 10, TileSize + 10);
@@ -1799,7 +1802,8 @@ namespace CrushIt.UI
                     g.FillEllipse(arrowBrush, arrowX - 8, arrowY - 8, 16, 16);
                 }
 
-                using (Pen linePen = new Pen(Color.FromArgb(pulseAlpha, 255, 255, 100), 3))
+                int clampedPulseAlpha = Math.Max(0, Math.Min(255, pulseAlpha));
+                using (Pen linePen = new Pen(Color.FromArgb(clampedPulseAlpha, 255, 255, 100), 3))
                 {
                     g.DrawLine(linePen, x1, y1, x2, y2);
                 }
@@ -1998,7 +2002,8 @@ namespace CrushIt.UI
             if (isSelected)
             {
                 int glowPulse = (int)(15 * Math.Sin(pulsePhase * Math.PI / 20));
-                using (SolidBrush selectionGlow = new SolidBrush(Color.FromArgb(60 + glowPulse, 255, 255, 100)))
+                int glowAlpha = Math.Max(0, Math.Min(255, 60 + glowPulse));
+                using (SolidBrush selectionGlow = new SolidBrush(Color.FromArgb(glowAlpha, 255, 255, 100)))
                 {
                     Rectangle glowRect = new Rectangle(x - 4, animatedY - 4, size + 8, size + 8);
                     g.FillRoundedRectangle(selectionGlow, glowRect, 12);

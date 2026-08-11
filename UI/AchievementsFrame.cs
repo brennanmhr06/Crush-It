@@ -247,6 +247,7 @@ namespace CrushIt.UI
                     coin.Y += coin.SpeedY;
                     coin.Rotation += 5;
                     coin.Alpha -= 3;
+                    coin.Alpha = Math.Max(0, coin.Alpha);
 
                     if (coin.Y > this.ClientSize.Height + 50 || coin.Alpha <= 0)
                     {
@@ -303,12 +304,13 @@ namespace CrushIt.UI
         {
             foreach (var coin in coinParticles)
             {
-                using (SolidBrush coinBrush = new SolidBrush(Color.FromArgb(coin.Alpha, 255, 215, 0)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, coin.Alpha));
+                using (SolidBrush coinBrush = new SolidBrush(Color.FromArgb(clampedAlpha, 255, 215, 0)))
                 {
                     g.FillEllipse(coinBrush, (int)coin.X, (int)coin.Y, coin.Size, coin.Size);
                 }
 
-                using (SolidBrush highlightBrush = new SolidBrush(Color.FromArgb(coin.Alpha, 255, 255, 200)))
+                using (SolidBrush highlightBrush = new SolidBrush(Color.FromArgb(clampedAlpha, 255, 255, 200)))
                 {
                     g.FillEllipse(highlightBrush, (int)coin.X + coin.Size / 4, (int)coin.Y + coin.Size / 4, coin.Size / 2, coin.Size / 2);
                 }
@@ -425,6 +427,7 @@ namespace CrushIt.UI
                 if (achievement.IsUnlocked)
                 {
                     int glowAlpha = 60 + (int)(30 * Math.Sin(pulsePhase * Math.PI / 25));
+                    glowAlpha = Math.Max(0, Math.Min(255, glowAlpha));
                     using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(glowAlpha, glowColor)))
                     {
                         g.FillRectangle(glowBrush, achievementRect.X - 2, achievementRect.Y - 2, achievementRect.Width + 4, achievementRect.Height + 4);

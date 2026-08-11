@@ -233,6 +233,7 @@ namespace CrushIt.UI
                 confetti.SpeedY += 0.15f; // Gravity
                 confetti.Rotation += confetti.RotationSpeed;
                 confetti.Alpha -= 0.008f;
+                confetti.Alpha = Math.Max(0, confetti.Alpha);
             }
             
             confettiParticles.RemoveAll(c => c.Alpha <= 0 || c.Y > this.ClientSize.Height);
@@ -737,7 +738,8 @@ namespace CrushIt.UI
             
             // Glow effect
             int glowPulse = (int)(10 * Math.Sin(pulsePhase * Math.PI / 40));
-            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(30 + glowPulse, 255, 200, 100)))
+            int glowAlpha = Math.Max(0, Math.Min(255, 30 + glowPulse));
+            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(glowAlpha, 255, 200, 100)))
             {
                 Rectangle glowRect = new Rectangle(titleRect.X - 2, titleRect.Y - 2, titleRect.Width + 4, titleRect.Height + 4);
                 g.FillRoundedRectangle(glowBrush, glowRect, 27);
@@ -868,7 +870,8 @@ namespace CrushIt.UI
             if (focusAlpha > 0.01f)
             {
                 int underlineWidth = (int)(fieldRect.Width * focusAlpha);
-                using (Pen underlinePen = new Pen(Color.FromArgb((int)(255 * focusAlpha), 255, 200, 100), 2))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)(255 * focusAlpha)));
+                using (Pen underlinePen = new Pen(Color.FromArgb(clampedAlpha, 255, 200, 100), 2))
                 {
                     g.DrawLine(underlinePen, fieldRect.X, (int)labelY + 15, fieldRect.X + underlineWidth, (int)labelY + 15);
                 }
@@ -912,7 +915,8 @@ namespace CrushIt.UI
             // Subtle glow when focused
             if (focusAlpha > 0.01f)
             {
-                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb((int)(30 * focusAlpha), 255, 220, 150)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)(30 * focusAlpha)));
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(clampedAlpha, 255, 220, 150)))
                 {
                     Rectangle glowRect = new Rectangle(rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
                     g.FillRoundedRectangle(glowBrush, glowRect, 16);
@@ -935,6 +939,7 @@ namespace CrushIt.UI
                 {
                     // Animated cursor
                     int cursorAlpha = (int)(200 + 55 * Math.Sin(pulsePhase * Math.PI / 8));
+                    cursorAlpha = Math.Max(0, Math.Min(255, cursorAlpha));
                     using (Pen cursorPen = new Pen(Color.FromArgb(cursorAlpha, 60, 40, 80), 2))
                     {
                         g.DrawLine(cursorPen, cursorX, rect.Y + 12, cursorX, rect.Bottom - 12);
@@ -976,7 +981,8 @@ namespace CrushIt.UI
             if (isButtonHovered)
             {
                 int glowPulse = (int)(15 * Math.Sin(pulsePhase * Math.PI / 30));
-                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(40 + glowPulse, 255, 180, 220)))
+                int glowAlpha = Math.Max(0, Math.Min(255, 40 + glowPulse));
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(glowAlpha, 255, 180, 220)))
                 {
                     Rectangle glowRect = new Rectangle(scaledRect.X - 3, scaledRect.Y - 3, scaledRect.Width + 6, scaledRect.Height + 6);
                     g.FillRoundedRectangle(glowBrush, glowRect, 25);
@@ -1099,7 +1105,8 @@ namespace CrushIt.UI
                 g.TranslateTransform(confetti.X, confetti.Y);
                 g.RotateTransform(confetti.Rotation * 180 / (float)Math.PI);
                 
-                using (SolidBrush confettiBrush = new SolidBrush(Color.FromArgb((int)(255 * confetti.Alpha), confetti.Color)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)(255 * confetti.Alpha)));
+                using (SolidBrush confettiBrush = new SolidBrush(Color.FromArgb(clampedAlpha, confetti.Color)))
                 {
                     g.FillRectangle(confettiBrush, -confetti.Size / 2, -confetti.Size / 2, confetti.Size, confetti.Size);
                 }

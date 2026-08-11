@@ -109,7 +109,8 @@ namespace CrushIt.UI
         {
             foreach (var p in particles)
             {
-                using (SolidBrush brush = new SolidBrush(Color.FromArgb(p.Alpha, p.ParticleColor)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, p.Alpha));
+                using (SolidBrush brush = new SolidBrush(Color.FromArgb(clampedAlpha, p.ParticleColor)))
                 {
                     g.FillEllipse(brush, p.X, p.Y, p.Size, p.Size);
                 }
@@ -245,16 +246,18 @@ namespace CrushIt.UI
                 if (isActive)
                 {
                     int glowPulse = (int)(25 * Math.Sin(pulsePhase * Math.PI / 40));
-                    
+
                     // Outer glow
-                    using (SolidBrush outerGlow = new SolidBrush(Color.FromArgb(50 + glowPulse, 255, 180, 100)))
+                    int outerGlowAlpha = Math.Max(0, Math.Min(255, 50 + glowPulse));
+                    using (SolidBrush outerGlow = new SolidBrush(Color.FromArgb(outerGlowAlpha, 255, 180, 100)))
                     {
                         Rectangle glowRect = new Rectangle(itemX + 15, navY + 15, navWidth - 30, navHeight - 30);
                         g.FillRectangle(outerGlow, glowRect);
                     }
-                    
+
                     // Inner glow
-                    using (SolidBrush innerGlow = new SolidBrush(Color.FromArgb(80 + glowPulse, 255, 200, 150)))
+                    int innerGlowAlpha = Math.Max(0, Math.Min(255, 80 + glowPulse));
+                    using (SolidBrush innerGlow = new SolidBrush(Color.FromArgb(innerGlowAlpha, 255, 200, 150)))
                     {
                         Rectangle innerGlowRect = new Rectangle(itemX + 20, navY + 20, navWidth - 40, navHeight - 40);
                         g.FillRectangle(innerGlow, innerGlowRect);

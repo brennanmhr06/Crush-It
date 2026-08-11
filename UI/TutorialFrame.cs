@@ -577,6 +577,7 @@ namespace CrushIt.UI
                 p.X += p.SpeedX;
                 p.Y += p.SpeedY;
                 p.Alpha -= 18;
+                p.Alpha = Math.Max(0, p.Alpha);
 
                 if (p.Alpha <= 0)
                     burstParticles.RemoveAt(i);
@@ -624,6 +625,7 @@ namespace CrushIt.UI
                     confetti.SpeedY += 0.15f; // Gravity
                     confetti.Rotation += confetti.RotationSpeed;
                     confetti.Alpha -= 0.008f;
+                    confetti.Alpha = Math.Max(0, confetti.Alpha);
                 }
                 
                 confettiParticles.RemoveAll(c => c.Alpha <= 0 || c.Y > this.ClientSize.Height);
@@ -686,7 +688,8 @@ namespace CrushIt.UI
 
                 // Enhanced glow effect
                 int glowPulse = (int)(20 * Math.Sin(completionAnimationPhase * Math.PI / 40));
-                using (SolidBrush glow = new SolidBrush(Color.FromArgb(80 + glowPulse, 100, 255, 150)))
+                int glowAlpha = Math.Max(0, Math.Min(255, 80 + glowPulse));
+                using (SolidBrush glow = new SolidBrush(Color.FromArgb(glowAlpha, 100, 255, 150)))
                 {
                     Rectangle glowRect = new Rectangle(compBanner.X - 8, compBanner.Y - 8, compBanner.Width + 16, compBanner.Height + 16);
                     g.FillRoundedRectangle(glow, glowRect, cornerRadius + 8);
@@ -779,10 +782,11 @@ namespace CrushIt.UI
             {
                 g.FillRoundedRectangle(glassBrush, banner, 25);
             }
-            
+
             // Glow effect
             int glowPulse = (int)(10 * Math.Sin(pulsePhase * Math.PI / 40));
-            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(30 + glowPulse, 255, 200, 100)))
+            int glowAlpha = Math.Max(0, Math.Min(255, 30 + glowPulse));
+            using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(glowAlpha, 255, 200, 100)))
             {
                 Rectangle glowRect = new Rectangle(banner.X - 2, banner.Y - 2, banner.Width + 4, banner.Height + 4);
                 g.FillRoundedRectangle(glowBrush, glowRect, 27);
@@ -888,12 +892,13 @@ namespace CrushIt.UI
             {
                 g.FillRoundedRectangle(buttonBrush, scaledRect, 12);
             }
-            
+
             // Glow effect on hover
             if (isButtonHovered)
             {
                 int glowPulse = (int)(15 * Math.Sin(pulsePhase * Math.PI / 30));
-                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(40 + glowPulse, 255, 180, 220)))
+                int glowAlpha = Math.Max(0, Math.Min(255, 40 + glowPulse));
+                using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(glowAlpha, 255, 180, 220)))
                 {
                     Rectangle glowRect = new Rectangle(scaledRect.X - 3, scaledRect.Y - 3, scaledRect.Width + 6, scaledRect.Height + 6);
                     g.FillRoundedRectangle(glowBrush, glowRect, 15);
@@ -1026,7 +1031,8 @@ namespace CrushIt.UI
             // Draw particles
             foreach (var p in burstParticles)
             {
-                using (SolidBrush pb = new SolidBrush(Color.FromArgb((int)p.Alpha, p.ParticleColor)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)p.Alpha));
+                using (SolidBrush pb = new SolidBrush(Color.FromArgb(clampedAlpha, p.ParticleColor)))
                 {
                     g.FillEllipse(pb, p.X - p.Size / 2, p.Y - p.Size / 2, p.Size, p.Size);
                 }
@@ -1041,7 +1047,8 @@ namespace CrushIt.UI
                 g.TranslateTransform(confetti.X, confetti.Y);
                 g.RotateTransform(confetti.Rotation * 180 / (float)Math.PI);
                 
-                using (SolidBrush confettiBrush = new SolidBrush(Color.FromArgb((int)(255 * confetti.Alpha), confetti.Color)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, (int)(255 * confetti.Alpha)));
+                using (SolidBrush confettiBrush = new SolidBrush(Color.FromArgb(clampedAlpha, confetti.Color)))
                 {
                     g.FillRectangle(confettiBrush, -confetti.Size / 2, -confetti.Size / 2, confetti.Size, confetti.Size);
                 }
@@ -1099,7 +1106,8 @@ namespace CrushIt.UI
             if (isSelected)
             {
                 int glowPulse = (int)(15 * Math.Sin(pulsePhase * Math.PI / 20));
-                using (SolidBrush selectionGlow = new SolidBrush(Color.FromArgb(60 + glowPulse, 255, 255, 100)))
+                int glowAlpha = Math.Max(0, Math.Min(255, 60 + glowPulse));
+                using (SolidBrush selectionGlow = new SolidBrush(Color.FromArgb(glowAlpha, 255, 255, 100)))
                 {
                     Rectangle glowRect = new Rectangle(x - 4, animatedY - 4, size + 8, size + 8);
                     g.FillRoundedRectangle(selectionGlow, glowRect, 12);

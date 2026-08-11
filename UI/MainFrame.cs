@@ -700,6 +700,7 @@ namespace CrushIt.UI
                 p.X += p.SpeedX;
                 p.Y += p.SpeedY;
                 p.Alpha -= 3;
+                p.Alpha = Math.Max(0, p.Alpha);
 
                 if (p.Alpha <= 0 || p.Y > this.ClientSize.Height)
                 {
@@ -933,7 +934,8 @@ namespace CrushIt.UI
             if (showGlow)
             {
                 int glowPulse = (int)(30 * Math.Sin(pulsePhase * Math.PI / 45));
-                using (SolidBrush glow = new SolidBrush(Color.FromArgb(25 + glowPulse, glowColor)))
+                int glowAlpha = Math.Max(0, Math.Min(255, 25 + glowPulse));
+                using (SolidBrush glow = new SolidBrush(Color.FromArgb(glowAlpha, glowColor)))
                     g.FillEllipse(glow, x - 6, y - 6, size + 12, size + 12);
             }
 
@@ -1267,6 +1269,7 @@ namespace CrushIt.UI
             if (achievement.IsUnlocked)
             {
                 int glowAlpha = 60 + (int)(30 * Math.Sin(pulsePhase * Math.PI / 25));
+                glowAlpha = Math.Max(0, Math.Min(255, glowAlpha));
                 using (SolidBrush glowBrush = new SolidBrush(Color.FromArgb(glowAlpha, glowColor)))
                 {
                     g.FillRectangle(glowBrush, rect.X - 2, rect.Y - 2, rect.Width + 4, rect.Height + 4);
@@ -1424,12 +1427,13 @@ namespace CrushIt.UI
         {
             foreach (var coin in coinParticles)
             {
-                using (SolidBrush coinBrush = new SolidBrush(Color.FromArgb(coin.Alpha, 255, 215, 0)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, coin.Alpha));
+                using (SolidBrush coinBrush = new SolidBrush(Color.FromArgb(clampedAlpha, 255, 215, 0)))
                 {
                     g.FillEllipse(coinBrush, (int)coin.X, (int)coin.Y, coin.Size, coin.Size);
                 }
 
-                using (SolidBrush highlightBrush = new SolidBrush(Color.FromArgb(coin.Alpha, 255, 255, 200)))
+                using (SolidBrush highlightBrush = new SolidBrush(Color.FromArgb(clampedAlpha, 255, 255, 200)))
                 {
                     g.FillEllipse(highlightBrush, (int)coin.X + coin.Size / 4, (int)coin.Y + coin.Size / 4, coin.Size / 2, coin.Size / 2);
                 }
