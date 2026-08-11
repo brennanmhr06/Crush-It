@@ -31,9 +31,11 @@ namespace CrushIt.Core
     {
         private static readonly object _lock = new();
         private static readonly List<IWavePlayer> _activePlayers = new();
+        private static readonly List<AudioFileReader> _activeReaders = new();
         private static IWavePlayer? _backgroundPlayer;
         private static AudioFileReader? _backgroundReader;
         private static bool _isBackgroundMusicPlaying = false;
+        private static bool _isCleaningUp = false;
         private static SoundSettings _settings = new();
 
         private static readonly Dictionary<SoundType, string> _soundPaths = new()
@@ -59,13 +61,15 @@ namespace CrushIt.Core
         {
             lock (_lock)
             {
+                _isCleaningUp = true;
                 CleanupAllPlayers();
+                _isCleaningUp = false;
             }
         }
 
         public static void PlaySound(SoundType soundType)
         {
-            if (!_settings.SfxEnabled)
+            if (!_settings.SfxEnabled || _isCleaningUp)
                 return;
 
             try
@@ -82,26 +86,44 @@ namespace CrushIt.Core
 
                 player.PlaybackStopped += (_, _) =>
                 {
+                    lock (_lock)
+                    {
+                        if (!_isCleaningUp)
+                        {
+                            try
+                            {
+                                _activePlayers.Remove(player);
+                                _activeReaders.Remove(reader);
+                            }
+                            catch { }
+                        }
+                    }
+                    
                     try
                     {
                         player.Dispose();
                         reader.Dispose();
                     }
                     catch { }
-                    lock (_lock)
-                    {
-                        _activePlayers.Remove(player);
-                    }
                 };
 
                 lock (_lock)
                 {
-                    _activePlayers.Add(player);
+                    if (!_isCleaningUp)
+                    {
+                        _activePlayers.Add(player);
+                        _activeReaders.Add(reader);
+                        
+                        player.Init(reader);
+                        player.Volume = _settings.MasterVolume * _settings.SfxVolume;
+                        player.Play();
+                    }
+                    else
+                    {
+                        player.Dispose();
+                        reader.Dispose();
+                    }
                 }
-
-                player.Init(reader);
-                player.Volume = _settings.MasterVolume * _settings.SfxVolume;
-                player.Play();
             }
             catch (Exception ex)
             {
@@ -136,11 +158,19 @@ namespace CrushIt.Core
                 
                 _backgroundPlayer.PlaybackStopped += (_, _) =>
                 {
-                    if (_isBackgroundMusicPlaying && _backgroundReader != null && _backgroundPlayer != null)
+                    if (_isBackgroundMusicPlaying && !_isCleaningUp && _backgroundReader != null && _backgroundPlayer != null)
                     {
-                        _backgroundReader.Position = 0;
-                        _backgroundPlayer.Volume = _settings.MasterVolume * _settings.MusicVolume;
-                        _backgroundPlayer.Play();
+                        try
+                        {
+                            _backgroundReader.Position = 0;
+                            _backgroundPlayer.Volume = _settings.MasterVolume * _settings.MusicVolume;
+                            _backgroundPlayer.Play();
+                        }
+                        catch
+                        {
+                            // If we can't restart, stop background music
+                            _isBackgroundMusicPlaying = false;
+                        }
                     }
                 };
 
@@ -227,8 +257,10 @@ namespace CrushIt.Core
         {
             lock (_lock)
             {
+                _isCleaningUp = true;
                 StopBackgroundMusic();
                 CleanupAllPlayers();
+                _isCleaningUp = false;
             }
         }
 
@@ -244,6 +276,16 @@ namespace CrushIt.Core
                 catch { }
             }
             _activePlayers.Clear();
+            
+            foreach (var reader in _activeReaders)
+            {
+                try
+                {
+                    reader.Dispose();
+                }
+                catch { }
+            }
+            _activeReaders.Clear();
         }
 
         public static bool IsBackgroundMusicPlaying => _isBackgroundMusicPlaying;
