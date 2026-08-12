@@ -140,6 +140,22 @@ namespace CrushIt.Core
                     }
                 }
             }
+            catch (FileNotFoundException ex)
+            {
+                Logger.LogWarning($"Sound file not found for {soundType}", ex);
+            }
+            catch (IOException ex)
+            {
+                Logger.LogWarning($"Sound file IO error for {soundType}", ex);
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                Logger.LogWarning($"Sound audio device error for {soundType}", ex);
+            }
+            catch (InvalidOperationException ex)
+            {
+                Logger.LogWarning($"Sound invalid operation for {soundType}", ex);
+            }
             catch (Exception ex)
             {
                 Logger.LogError($"Failed to play sound {soundType}", ex);
@@ -194,6 +210,26 @@ namespace CrushIt.Core
                 _backgroundPlayer.Play();
                 _isBackgroundMusicPlaying = true;
             }
+            catch (FileNotFoundException ex)
+            {
+                Logger.LogWarning("Background music file not found", ex);
+                StopBackgroundMusic();
+            }
+            catch (IOException ex)
+            {
+                Logger.LogWarning("Background music file IO error", ex);
+                StopBackgroundMusic();
+            }
+            catch (System.ComponentModel.Win32Exception ex)
+            {
+                Logger.LogWarning("Background music audio device error", ex);
+                StopBackgroundMusic();
+            }
+            catch (InvalidOperationException ex)
+            {
+                Logger.LogWarning("Background music invalid operation", ex);
+                StopBackgroundMusic();
+            }
             catch (Exception ex)
             {
                 Logger.LogError("Failed to start background music", ex);
@@ -211,6 +247,14 @@ namespace CrushIt.Core
                 _backgroundPlayer?.Stop();
                 _backgroundPlayer?.Dispose();
                 _backgroundReader?.Dispose();
+            }
+            catch (ObjectDisposedException ex)
+            {
+                Logger.LogWarning("Background music already disposed", ex);
+            }
+            catch (InvalidOperationException ex)
+            {
+                Logger.LogWarning("Background music invalid operation on stop", ex);
             }
             catch (Exception ex)
             {

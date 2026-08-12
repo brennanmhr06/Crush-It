@@ -633,6 +633,14 @@ namespace CrushIt.UI
                     .Inc(u => u.Gold, achievement.GoldReward);
                 await usersCollection.UpdateOneAsync(filter, update);
             }
+            catch (MongoException ex)
+            {
+                Logger.LogError("MongoDB error claiming achievement", ex);
+            }
+            catch (TimeoutException ex)
+            {
+                Logger.LogWarning("Database timeout claiming achievement", ex);
+            }
             catch (Exception ex)
             {
                 Logger.LogError("Failed to claim achievement", ex);
@@ -1520,6 +1528,14 @@ namespace CrushIt.UI
             try
             {
                 await ProgressSyncService.SyncOnCloseAsync(currentUser, database, apiClient);
+            }
+            catch (MongoException ex)
+            {
+                Logger.LogError("MongoDB error during sync on close", ex);
+            }
+            catch (TaskCanceledException ex)
+            {
+                Logger.LogWarning("Sync on close timed out", ex);
             }
             catch (Exception ex)
             {

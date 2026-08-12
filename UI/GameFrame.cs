@@ -460,6 +460,14 @@ namespace CrushIt.UI
 
                     _ = ProgressSyncService.SyncAfterLevelAsync(currentUser, database, apiClient);
                 }
+                catch (MongoException ex)
+                {
+                    Logger.LogError("MongoDB error updating level completion", ex);
+                }
+                catch (TimeoutException ex)
+                {
+                    Logger.LogWarning("Database timeout updating level completion", ex);
+                }
                 catch (Exception ex)
                 {
                     Logger.LogError("Failed to update level completion", ex);
@@ -1218,6 +1226,14 @@ namespace CrushIt.UI
                         // Sync progress with server after level completion
                         _ = ProgressSyncService.SyncAfterLevelAsync(currentUser, database, apiClient);
                     }
+                    catch (MongoException ex)
+                    {
+                        Logger.LogError("MongoDB error updating level completion", ex);
+                    }
+                    catch (TimeoutException ex)
+                    {
+                        Logger.LogWarning("Database timeout updating level completion", ex);
+                    }
                     catch (Exception ex)
                     {
                         Logger.LogError("Failed to update level completion", ex);
@@ -1526,6 +1542,14 @@ namespace CrushIt.UI
                 var filter = Builders<UserAccount>.Filter.Eq(u => u.Email, currentUser.Email);
                 var update = Builders<UserAccount>.Update.Set(u => u.Achievements, currentUser.Achievements);
                 await usersCollection.UpdateOneAsync(filter, update);
+            }
+            catch (MongoException ex)
+            {
+                Logger.LogError("MongoDB error updating achievements", ex);
+            }
+            catch (TimeoutException ex)
+            {
+                Logger.LogWarning("Database timeout updating achievements", ex);
             }
             catch (Exception ex)
             {

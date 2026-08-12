@@ -147,6 +147,14 @@ namespace CrushIt.UI
 
                 currentUser.Gold += sessionGold;
             }
+            catch (MongoException ex)
+            {
+                Logger.LogError("MongoDB error updating tutorial status", ex);
+            }
+            catch (TimeoutException ex)
+            {
+                Logger.LogWarning("Database timeout updating tutorial status", ex);
+            }
             catch (Exception ex)
             {
                 Logger.LogError("Failed to update tutorial status", ex);

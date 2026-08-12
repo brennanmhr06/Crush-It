@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading.Tasks;
 using CrushIt.Data;
 using CrushIt.API.Models;
+using CrushIt.Core;
 
 namespace CrushIt.API
 {
@@ -47,7 +48,7 @@ namespace CrushIt.API
                 if (!_rateLimiter.TryRequest(userId))
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Rate limit exceeded for user {userId}");
+                        Logger.LogWarning($"Rate limit exceeded for user {userId}");
                     return true; // Fail-open
                 }
 
@@ -72,7 +73,7 @@ namespace CrushIt.API
                 if (!response.IsSuccessStatusCode)
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Score validation failed: {response.StatusCode}");
+                        Logger.LogWarning($"Score validation failed: {response.StatusCode}");
                     return false;
                 }
 
@@ -81,11 +82,20 @@ namespace CrushIt.API
 
                 return result?.IsValid ?? false;
             }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogWarning($"Score validation network error for user {userId}", ex);
+                return true; // Fail-open on network errors
+            }
+            catch (TaskCanceledException ex)
+            {
+                Logger.LogWarning($"Score validation timeout for user {userId}", ex);
+                return true; // Fail-open on timeout
+            }
             catch (Exception ex)
             {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Score validation error: {ex.Message}");
-                return true;
+                Logger.LogError($"Score validation unexpected error for user {userId}", ex);
+                return true; // Fail-open on unexpected errors
             }
         }
 
@@ -129,11 +139,20 @@ namespace CrushIt.API
 
                 return result?.IsValid ?? false;
             }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogWarning($"Achievement verification network error for user {userId}", ex);
+                return true; // Fail-open on network errors
+            }
+            catch (TaskCanceledException ex)
+            {
+                Logger.LogWarning($"Achievement verification timeout for user {userId}", ex);
+                return true; // Fail-open on timeout
+            }
             catch (Exception ex)
             {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Achievement verification error: {ex.Message}");
-                return true;
+                Logger.LogError($"Achievement verification unexpected error for user {userId}", ex);
+                return true; // Fail-open on unexpected errors
             }
         }
 
@@ -183,11 +202,20 @@ namespace CrushIt.API
 
                 return result?.IsValid ?? false;
             }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogWarning($"Session validation network error for user {userId}", ex);
+                return true; // Fail-open on network errors
+            }
+            catch (TaskCanceledException ex)
+            {
+                Logger.LogWarning($"Session validation timeout for user {userId}", ex);
+                return true; // Fail-open on timeout
+            }
             catch (Exception ex)
             {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Session validation error: {ex.Message}");
-                return true;
+                Logger.LogError($"Session validation unexpected error for user {userId}", ex);
+                return true; // Fail-open on unexpected errors
             }
         }
 
@@ -233,11 +261,20 @@ namespace CrushIt.API
 
                 return true;
             }
+            catch (HttpRequestException ex)
+            {
+                Logger.LogWarning($"Pattern reporting network error for user {userId}", ex);
+                return true; // Fail-open on network errors
+            }
+            catch (TaskCanceledException ex)
+            {
+                Logger.LogWarning($"Pattern reporting timeout for user {userId}", ex);
+                return true; // Fail-open on timeout
+            }
             catch (Exception ex)
             {
-                if (_config.EnableLogging)
-                    Console.WriteLine($"Pattern reporting error: {ex.Message}");
-                return true;
+                Logger.LogError($"Pattern reporting unexpected error for user {userId}", ex);
+                return true; // Fail-open on unexpected errors
             }
         }
 
@@ -279,10 +316,34 @@ namespace CrushIt.API
                     RequiresManualReview = result?.RequiresManualReview ?? false
                 };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Achievement status check network error for user {userId}", ex);
+                return new AchievementValidationResult
+                {
+                    IsValid = true,
+                    Reason = "Network error - client accepted",
+                    ValidatedAt = DateTime.UtcNow,
+                    RequiresManualReview = false
+                };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Achievement status check timeout for user {userId}", ex);
+                return new AchievementValidationResult
+                {
+                    IsValid = true,
+                    Reason = "Timeout - client accepted",
+                    ValidatedAt = DateTime.UtcNow,
+                    RequiresManualReview = false
+                };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Achievement status check error: {ex.Message}");
+                    Logger.LogError($"Achievement status check unexpected error for user {userId}", ex);
                 return new AchievementValidationResult
                 {
                     IsValid = true,
@@ -346,10 +407,32 @@ namespace CrushIt.API
                     RiskLevel = result.RiskLevel
                 };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Registration network error for email {email}", ex);
+                return new UserRegistrationResult
+                {
+                    Success = false,
+                    Message = "Network error - try offline registration",
+                    RiskLevel = "LOW"
+                };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Registration timeout for email {email}", ex);
+                return new UserRegistrationResult
+                {
+                    Success = false,
+                    Message = "Request timeout - try offline registration",
+                    RiskLevel = "LOW"
+                };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Registration	error: {ex.Message}");
+                    Logger.LogError($"Registration unexpected error for email {email}", ex);
                 return new UserRegistrationResult
                 {
                     Success = false,
@@ -367,7 +450,7 @@ namespace CrushIt.API
                 if (!_rateLimiter.TryRequest(email))
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Rate limit exceeded for email {email}");
+                        Logger.LogWarning($"Rate limit exceeded for email {email}");
                     return new UserLoginResult { Success = false, Message = "Rate limit exceeded" };
                 }
 
@@ -411,10 +494,30 @@ namespace CrushIt.API
                     AccountFlagged = result.AccountFlagged
                 };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Login network error for email {email}", ex);
+                return new UserLoginResult
+                {
+                    Success = false,
+                    Message = "Network error - try offline login"
+                };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Login timeout for email {email}", ex);
+                return new UserLoginResult
+                {
+                    Success = false,
+                    Message = "Request timeout - try offline login"
+                };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Login error: {ex.Message}");
+                    Logger.LogError($"Login unexpected error for email {email}", ex);
                 return new UserLoginResult
                 {
                     Success = false,
@@ -430,7 +533,7 @@ namespace CrushIt.API
                 if (!_rateLimiter.TryRequest(request.UserId))
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Rate limit exceeded for user {request.UserId}");
+                        Logger.LogWarning($"Rate limit exceeded for user {request.UserId}");
                     return new ProgressSyncResponse { Success = false, Message = "Rate limit exceeded" };
                 }
 
@@ -446,7 +549,7 @@ namespace CrushIt.API
                 if (result == null)
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine("Sync failed: null response");
+                        Logger.LogError("Sync failed: null response");
                     return new ProgressSyncResponse
                     {
                         Success = false,
@@ -456,10 +559,30 @@ namespace CrushIt.API
 
                 return result;
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Sync network error for user {request.UserId}", ex);
+                return new ProgressSyncResponse
+                {
+                    Success = false,
+                    Message = "Network error - sync failed"
+                };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Sync timeout for user {request.UserId}", ex);
+                return new ProgressSyncResponse
+                {
+                    Success = false,
+                    Message = "Request timeout - sync failed"
+                };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Sync error: {ex.Message}");
+                    Logger.LogError($"Sync unexpected error for user {request.UserId}", ex);
                 return new ProgressSyncResponse
                 {
                     Success = false,
@@ -475,7 +598,7 @@ namespace CrushIt.API
                 if (!_rateLimiter.TryRequest(userId))
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Rate limit exceeded for user {userId}");
+                        Logger.LogWarning($"Rate limit exceeded for user {userId}");
                     return null;
                 }
 
@@ -494,10 +617,22 @@ namespace CrushIt.API
 
                 return result;
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Get server progress network error for user {userId}", ex);
+                return null;
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning($"Get server progress timeout for user {userId}", ex);
+                return null;
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Get server progress error: {ex.Message}");
+                    Logger.LogError($"Get server progress unexpected error for user {userId}", ex);
                 return null;
             }
         }
@@ -586,7 +721,7 @@ namespace CrushIt.API
                 if (!response.IsSuccessStatusCode)
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Event logging failed: {response.StatusCode}");
+                        Logger.LogWarning($"Event logging failed: {response.StatusCode}");
                     return new EventLogResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
@@ -595,10 +730,22 @@ namespace CrushIt.API
 
                 return result ?? new EventLogResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Event logging network error", ex);
+                return new EventLogResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Event logging timeout", ex);
+                return new EventLogResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Event logging error: {ex.Message}");
+                    Logger.LogError("Event logging unexpected error", ex);
                 return new EventLogResponse { Success = false, Message = ex.Message };
             }
         }
@@ -616,7 +763,7 @@ namespace CrushIt.API
                 if (!response.IsSuccessStatusCode)
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Error reporting failed: {response.StatusCode}");
+                        Logger.LogWarning($"Error reporting failed: {response.StatusCode}");
                     return new ErrorReportResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
@@ -625,10 +772,22 @@ namespace CrushIt.API
 
                 return result ?? new ErrorReportResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Error reporting network error", ex);
+                return new ErrorReportResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Error reporting timeout", ex);
+                return new ErrorReportResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Error reporting error: {ex.Message}");
+                    Logger.LogError("Error reporting unexpected error", ex);
                 return new ErrorReportResponse { Success = false, Message = ex.Message };
             }
         }
@@ -646,7 +805,7 @@ namespace CrushIt.API
                 if (!response.IsSuccessStatusCode)
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Usage statistics submission failed: {response.StatusCode}");
+                        Logger.LogWarning($"Usage statistics submission failed: {response.StatusCode}");
                     return new UsageStatsResponse { Success = false, Message = $"HTTP {response.StatusCode}" };
                 }
 
@@ -655,10 +814,22 @@ namespace CrushIt.API
 
                 return result ?? new UsageStatsResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Usage statistics network error", ex);
+                return new UsageStatsResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Usage statistics timeout", ex);
+                return new UsageStatsResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Usage statistics error: {ex.Message}");
+                    Logger.LogError("Usage statistics unexpected error", ex);
                 return new UsageStatsResponse { Success = false, Message = ex.Message };
             }
         }
@@ -681,7 +852,7 @@ namespace CrushIt.API
                 if (!response.IsSuccessStatusCode)
                 {
                     if (_config.EnableLogging)
-                        Console.WriteLine($"Health check failed: {response.StatusCode}");
+                        Logger.LogWarning($"Health check failed: {response.StatusCode}");
                     return new HealthCheckResponse { IsHealthy = false, Status = $"HTTP {response.StatusCode}" };
                 }
 
@@ -696,10 +867,22 @@ namespace CrushIt.API
 
                 return result ?? new HealthCheckResponse { IsHealthy = false, Status = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Health check network error", ex);
+                return new HealthCheckResponse { IsHealthy = false, Status = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Health check timeout", ex);
+                return new HealthCheckResponse { IsHealthy = false, Status = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Health check error: {ex.Message}");
+                    Logger.LogError("Health check unexpected error", ex);
                 return new HealthCheckResponse { IsHealthy = false, Status = ex.Message };
             }
         }
@@ -740,10 +923,22 @@ namespace CrushIt.API
 
                 return result ?? new SendFriendRequestResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Send friend request network error", ex);
+                return new SendFriendRequestResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Send friend request timeout", ex);
+                return new SendFriendRequestResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Send friend request error: {ex.Message}");
+                    Logger.LogError("Send friend request unexpected error", ex);
                 return new SendFriendRequestResponse { Success = false, Message = ex.Message };
             }
         }
@@ -773,10 +968,22 @@ namespace CrushIt.API
 
                 return result ?? new AcceptFriendRequestResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Accept friend request network error", ex);
+                return new AcceptFriendRequestResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Accept friend request timeout", ex);
+                return new AcceptFriendRequestResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Accept friend request error: {ex.Message}");
+                    Logger.LogError("Accept friend request unexpected error", ex);
                 return new AcceptFriendRequestResponse { Success = false, Message = ex.Message };
             }
         }
@@ -806,10 +1013,22 @@ namespace CrushIt.API
 
                 return result ?? new DeclineFriendRequestResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Decline friend request network error", ex);
+                return new DeclineFriendRequestResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Decline friend request timeout", ex);
+                return new DeclineFriendRequestResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Decline friend request error: {ex.Message}");
+                    Logger.LogError("Decline friend request unexpected error", ex);
                 return new DeclineFriendRequestResponse { Success = false, Message = ex.Message };
             }
         }
@@ -839,10 +1058,22 @@ namespace CrushIt.API
 
                 return result ?? new RemoveFriendResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Remove friend network error", ex);
+                return new RemoveFriendResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Remove friend timeout", ex);
+                return new RemoveFriendResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Remove friend error: {ex.Message}");
+                    Logger.LogError("Remove friend unexpected error", ex);
                 return new RemoveFriendResponse { Success = false, Message = ex.Message };
             }
         }
@@ -879,10 +1110,22 @@ namespace CrushIt.API
 
                 return result ?? new SearchUsersResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Search users network error", ex);
+                return new SearchUsersResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Search users timeout", ex);
+                return new SearchUsersResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Search users error: {ex.Message}");
+                    Logger.LogError("Search users unexpected error", ex);
                 return new SearchUsersResponse { Success = false, Message = ex.Message };
             }
         }
@@ -919,10 +1162,22 @@ namespace CrushIt.API
 
                 return result ?? new GetFriendsResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Get friends network error", ex);
+                return new GetFriendsResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Get friends timeout", ex);
+                return new GetFriendsResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Get friends error: {ex.Message}");
+                    Logger.LogError("Get friends unexpected error", ex);
                 return new GetFriendsResponse { Success = false, Message = ex.Message };
             }
         }
@@ -959,10 +1214,22 @@ namespace CrushIt.API
 
                 return result ?? new GetFriendRequestsResponse { Success = false, Message = "Failed to parse response" };
             }
+            catch (HttpRequestException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Get friend requests network error", ex);
+                return new GetFriendRequestsResponse { Success = false, Message = "Network error" };
+            }
+            catch (TaskCanceledException ex)
+            {
+                if (_config.EnableLogging)
+                    Logger.LogWarning("Get friend requests timeout", ex);
+                return new GetFriendRequestsResponse { Success = false, Message = "Request timeout" };
+            }
             catch (Exception ex)
             {
                 if (_config.EnableLogging)
-                    Console.WriteLine($"Get friend requests error: {ex.Message}");
+                    Logger.LogError("Get friend requests unexpected error", ex);
                 return new GetFriendRequestsResponse { Success = false, Message = ex.Message };
             }
         }

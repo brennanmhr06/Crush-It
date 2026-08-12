@@ -188,6 +188,14 @@ namespace CrushIt.UI
                     .Inc(u => u.Gold, achievement.GoldReward);
                 await usersCollection.UpdateOneAsync(filter, update);
             }
+            catch (MongoException ex)
+            {
+                Logger.LogError("MongoDB error claiming achievement", ex);
+            }
+            catch (TimeoutException ex)
+            {
+                Logger.LogWarning("Database timeout claiming achievement", ex);
+            }
             catch (Exception ex)
             {
                 Logger.LogError("Failed to claim achievement", ex);
