@@ -192,6 +192,10 @@ namespace CrushIt.UI
             var primaryScreen = Screen.PrimaryScreen;
             int screenWidth = primaryScreen?.WorkingArea.Width ?? 1920;
             int screenHeight = primaryScreen?.WorkingArea.Height ?? 1080;
+
+            // Ensure we have valid screen dimensions
+            if (screenWidth <= 0) screenWidth = 1920;
+            if (screenHeight <= 0) screenHeight = 1080;
             
             for (int i = 0; i < 40; i++)
             {

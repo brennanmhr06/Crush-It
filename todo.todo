@@ -1,7 +1,6 @@
 # Crush It! - Project TODO List
 
 ## 🔴 Critical Bug Fixes
-- [ ] Fix null reference warning in LoadingForm.cs line 191 (Screen.PrimaryScreen.WorkingArea dereference)
 - [ ] Add missing sound files referenced in SoundManager (levelcomplete.mp3, achievement.mp3, specialmove.mp3, gameover.mp3, buttonclick.mp3, navigation.mp3, error.mp3)
 
 ## 🟡 High Priority Features
