@@ -57,7 +57,7 @@ namespace CrushIt.Core
             try
             {
                 string deviceFingerprint = GenerateDeviceFingerprint();
-                System.Diagnostics.Debug.WriteLine($"[Sync] Starting sync on launch for user {currentUser.UserId}");
+                Logger.LogInfo($"[Sync] Starting sync on launch for user {currentUser.UserId}");
                 
                 var serverProgress = await apiClient.GetServerProgressAsync(currentUser.UserId, deviceFingerprint);
 
@@ -72,7 +72,7 @@ namespace CrushIt.Core
 
                 lastSyncTime = DateTime.UtcNow;
                 consecutiveErrors = 0; // Reset error counter on success
-                System.Diagnostics.Debug.WriteLine($"[Sync] Sync on launch completed successfully for user {currentUser.UserId}");
+                Logger.LogInfo($"[Sync] Sync on launch completed successfully for user {currentUser.UserId}");
                 return true;
             }
             catch (HttpRequestException ex)
@@ -154,7 +154,7 @@ namespace CrushIt.Core
                 }
 
                 var syncRequest = BuildSyncRequest(latestUser);
-                System.Diagnostics.Debug.WriteLine($"[Sync] Starting sync after level for user {currentUser.UserId}");
+                Logger.LogInfo($"[Sync] Starting sync after level for user {currentUser.UserId}");
                 
                 var syncResponse = await apiClient.SyncProgressAsync(syncRequest);
 
@@ -174,7 +174,7 @@ namespace CrushIt.Core
 
                 lastSyncTime = DateTime.UtcNow;
                 consecutiveErrors = 0; // Reset error counter on success
-                System.Diagnostics.Debug.WriteLine($"[Sync] Sync after level completed successfully for user {currentUser.UserId}");
+                Logger.LogInfo($"[Sync] Sync after level completed successfully for user {currentUser.UserId}");
                 return syncResponse.Success;
             }
             catch (HttpRequestException ex)
@@ -240,13 +240,13 @@ namespace CrushIt.Core
                 }
 
                 var syncRequest = BuildSyncRequest(latestUser);
-                System.Diagnostics.Debug.WriteLine($"[Sync] Starting sync on close for user {currentUser.UserId}");
+                Logger.LogInfo($"[Sync] Starting sync on close for user {currentUser.UserId}");
                 
                 var syncResponse = await apiClient.SyncProgressAsync(syncRequest);
 
                 lastSyncTime = DateTime.UtcNow;
                 consecutiveErrors = 0; // Reset error counter on success
-                System.Diagnostics.Debug.WriteLine($"[Sync] Sync on close completed successfully for user {currentUser.UserId}");
+                Logger.LogInfo($"[Sync] Sync on close completed successfully for user {currentUser.UserId}");
                 return syncResponse.Success;
             }
             catch (HttpRequestException ex)
@@ -410,14 +410,9 @@ namespace CrushIt.Core
             lastErrorTime = DateTime.UtcNow;
             lastErrorMessage = message;
             consecutiveErrors++;
-            
-            System.Diagnostics.Debug.WriteLine($"[Sync Error] {message}");
-            System.Diagnostics.Debug.WriteLine($"[Sync Error] Consecutive errors: {consecutiveErrors}");
-            
-            // TODO: In production, you might want to:
-            // 1. Log to a file
-            // 2. Send to a monitoring service
-            // 3. Show user notification if errors persist
+
+            Logger.LogError($"[Sync Error] {message}");
+            Logger.LogDebug($"[Sync Error] Consecutive errors: {consecutiveErrors}");
         }
 
         public static string GetLastError()

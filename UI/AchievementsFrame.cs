@@ -190,7 +190,7 @@ namespace CrushIt.UI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to claim achievement: {ex.Message}");
+                Logger.LogError("Failed to claim achievement", ex);
             }
 
             // Re-sort achievements to move claimed ones to bottom

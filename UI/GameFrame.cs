@@ -462,7 +462,7 @@ namespace CrushIt.UI
                 }
                 catch (Exception ex)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Failed to update level completion: {ex.Message}");
+                    Logger.LogError("Failed to update level completion", ex);
                 }
 
                 await Task.Delay(3000);
@@ -1220,7 +1220,7 @@ namespace CrushIt.UI
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Failed to update level completion: {ex.Message}");
+                        Logger.LogError("Failed to update level completion", ex);
                     }
 
                     await Task.Delay(3000);
@@ -1529,7 +1529,7 @@ namespace CrushIt.UI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to update achievements: {ex.Message}");
+                Logger.LogError("Failed to update achievements", ex);
             }
         }
 

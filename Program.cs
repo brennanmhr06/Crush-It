@@ -10,9 +10,13 @@ namespace CrushIt
         [STAThread]
         static void Main()
         {
+            // Initialize logging system
+            Logger.Initialize("Logs", LogLevel.Debug);
+            Logger.LogInfo("Application starting");
+
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            
+
             // Initialize sound system
             SoundManager.Initialize();
 
@@ -24,6 +28,7 @@ namespace CrushIt
             loadingForm.FormClosed += (s, e) => {
                 if (Application.OpenForms.Count == 0)
                 {
+                    Logger.LogInfo("Application shutting down");
                     SoundManager.Cleanup();
                     Application.Exit();
                 }

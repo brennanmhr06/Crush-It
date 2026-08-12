@@ -12,6 +12,7 @@ secrets.json
 ## Runtime and user-generated data
 user_account.txt
 **/session.json
+Logs/
 
 bin/
 obj/

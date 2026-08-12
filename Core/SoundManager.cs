@@ -142,7 +142,7 @@ namespace CrushIt.Core
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to play sound {soundType}: {ex.Message}");
+                Logger.LogError($"Failed to play sound {soundType}", ex);
             }
         }
 
@@ -196,7 +196,7 @@ namespace CrushIt.Core
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to start background music: {ex.Message}");
+                Logger.LogError("Failed to start background music", ex);
                 StopBackgroundMusic();
             }
         }
@@ -214,7 +214,7 @@ namespace CrushIt.Core
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to stop background music: {ex.Message}");
+                Logger.LogError("Failed to stop background music", ex);
             }
             finally
             {

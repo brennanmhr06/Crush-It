@@ -534,7 +534,7 @@ namespace CrushIt.UI
                 this.Hide(); // Hide instead of closing/disposing
 
                 string? lastUserEmail = UserSession.GetLastUserEmail();
-                System.Diagnostics.Debug.WriteLine($"Last user email: {lastUserEmail}");
+                Logger.LogDebug($"Last user email: {lastUserEmail}");
 
                 if (!string.IsNullOrEmpty(lastUserEmail))
                 {
@@ -547,7 +547,7 @@ namespace CrushIt.UI
                             .Find(u => u.Email.ToLower() == lastUserEmail.ToLower())
                             .FirstOrDefaultAsync();
 
-                        System.Diagnostics.Debug.WriteLine($"Existing user found: {existingUser != null}");
+                        Logger.LogDebug($"Existing user found: {existingUser != null}");
 
                         if (existingUser != null)
                         {
@@ -556,19 +556,19 @@ namespace CrushIt.UI
                             
                             if (!syncSuccess)
                             {
-                                System.Diagnostics.Debug.WriteLine($"Sync failed: {ProgressSyncService.GetLastError()}");
+                                Logger.LogWarning($"Sync failed: {ProgressSyncService.GetLastError()}");
                                 // Continue anyway - sync failure shouldn't block login
                             }
 
                             Form nextForm;
                             if (existingUser.HasCompletedTutorial)
                             {
-                                System.Diagnostics.Debug.WriteLine("Opening MainFrame");
+                                Logger.LogInfo("Opening MainFrame");
                                 nextForm = new MainFrame(existingUser, database);
                             }
                             else
                             {
-                                System.Diagnostics.Debug.WriteLine("Opening TutorialFrame");
+                                Logger.LogInfo("Opening TutorialFrame");
                                 nextForm = new TutorialFrame(existingUser);
                             }
                             nextForm.Show();
@@ -578,22 +578,22 @@ namespace CrushIt.UI
                     }
                     catch (HttpRequestException ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Auto-login network error: {ex.Message}");
+                        Logger.LogWarning("Auto-login network error", ex);
                         // Continue to sign up form on network error
                     }
                     catch (TaskCanceledException ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Auto-login timeout: {ex.Message}");
+                        Logger.LogWarning("Auto-login timeout", ex);
                         // Continue to sign up form on timeout
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Auto-login failed: {ex.GetType().Name} - {ex.Message}");
+                        Logger.LogWarning($"Auto-login failed: {ex.GetType().Name}", ex);
                         // Continue to sign up form on other errors
                     }
                 }
 
-                System.Diagnostics.Debug.WriteLine("Opening SignUpForm");
+                Logger.LogInfo("Opening SignUpForm");
                 Form signUp = new SignUpForm();
                 signUp.Show();
                 // Don't dispose - keep LoadingForm as main form

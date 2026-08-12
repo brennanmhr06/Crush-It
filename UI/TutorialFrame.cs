@@ -149,7 +149,7 @@ namespace CrushIt.UI
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to update tutorial status: {ex.Message}");
+                Logger.LogError("Failed to update tutorial status", ex);
             }
 
             // Check if MainFrame already exists and refresh it instead of creating new one
@@ -404,7 +404,7 @@ namespace CrushIt.UI
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Failed to update tutorial status: {ex.Message}");
+                        Logger.LogError("Failed to update tutorial status", ex);
                     }
 
                     await Task.Delay(3000);

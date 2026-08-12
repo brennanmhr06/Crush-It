@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Text.Json;
+using CrushIt.Core;
 
 namespace CrushIt.Data
 {
@@ -33,7 +34,7 @@ namespace CrushIt.Data
             catch (Exception ex)
             {
 
-                System.Diagnostics.Debug.WriteLine($"Failed to save session: {ex.Message}");
+                Logger.LogError("Failed to save session", ex);
             }
         }
 
@@ -50,7 +51,7 @@ namespace CrushIt.Data
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to load session: {ex.Message}");
+                Logger.LogError("Failed to load session", ex);
                 return null;
             }
         }
@@ -66,7 +67,7 @@ namespace CrushIt.Data
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Failed to clear session: {ex.Message}");
+                Logger.LogError("Failed to clear session", ex);
             }
         }
 

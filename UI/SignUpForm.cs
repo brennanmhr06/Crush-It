@@ -600,19 +600,19 @@ namespace CrushIt.UI
                     }
                     catch (HttpRequestException ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Login API request failed: {ex.Message}");
+                        Logger.LogWarning("Login API request failed", ex);
                         // Fall back to local mode on network error
                         useApi = false;
                     }
                     catch (TaskCanceledException ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Login API request timed out: {ex.Message}");
+                        Logger.LogWarning("Login API request timed out", ex);
                         // Fall back to local mode on timeout
                         useApi = false;
                     }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Login API unexpected error: {ex.GetType().Name} - {ex.Message}");
+                        Logger.LogWarning($"Login API unexpected error: {ex.GetType().Name}", ex);
                         // Fall back to local mode on unexpected error
                         useApi = false;
                     }
