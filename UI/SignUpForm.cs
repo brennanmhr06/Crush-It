@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Net.Http;
 using System.Windows.Forms;
 using MongoDB.Driver;
 using CrushIt.Data;
@@ -476,9 +477,11 @@ namespace CrushIt.UI
                     statusColor = Color.FromArgb(200, 255, 200);
                     this.Invalidate();
 
-                    var loginResult = await apiClient.LoginUserAsync(email, password, deviceFingerprint);
+                    try
+                    {
+                        var loginResult = await apiClient.LoginUserAsync(email, password, deviceFingerprint);
 
-                    if (loginResult.Success)
+                        if (loginResult.Success)
                     {
                         if (loginResult.AccountFlagged)
                         {
@@ -584,9 +587,35 @@ namespace CrushIt.UI
                         TriggerSuccessAnimation();
                         return;
                     }
-
-
-                    useApi = false;
+                    else
+                    {
+                        // Login failed - show error message
+                        isProcessing = false;
+                        statusMessage = "Login failed. Please check your credentials.";
+                        statusColor = Color.FromArgb(255, 120, 120);
+                        this.Invalidate();
+                        this.Show();
+                        return;
+                    }
+                    }
+                    catch (HttpRequestException ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Login API request failed: {ex.Message}");
+                        // Fall back to local mode on network error
+                        useApi = false;
+                    }
+                    catch (TaskCanceledException ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Login API request timed out: {ex.Message}");
+                        // Fall back to local mode on timeout
+                        useApi = false;
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Login API unexpected error: {ex.GetType().Name} - {ex.Message}");
+                        // Fall back to local mode on unexpected error
+                        useApi = false;
+                    }
                 }
 
 

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Net.Http;
 using System.Windows.Forms;
 using MongoDB.Driver;
 using CrushIt.Data;
@@ -545,7 +546,13 @@ namespace CrushIt.UI
                         if (existingUser != null)
                         {
                             // Sync progress with server
-                            await ProgressSyncService.SyncOnLaunchAsync(existingUser, database, apiClient);
+                            bool syncSuccess = await ProgressSyncService.SyncOnLaunchAsync(existingUser, database, apiClient);
+                            
+                            if (!syncSuccess)
+                            {
+                                System.Diagnostics.Debug.WriteLine($"Sync failed: {ProgressSyncService.GetLastError()}");
+                                // Continue anyway - sync failure shouldn't block login
+                            }
 
                             Form nextForm;
                             if (existingUser.HasCompletedTutorial)
@@ -563,9 +570,20 @@ namespace CrushIt.UI
                             return;
                         }
                     }
+                    catch (HttpRequestException ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Auto-login network error: {ex.Message}");
+                        // Continue to sign up form on network error
+                    }
+                    catch (TaskCanceledException ex)
+                    {
+                        System.Diagnostics.Debug.WriteLine($"Auto-login timeout: {ex.Message}");
+                        // Continue to sign up form on timeout
+                    }
                     catch (Exception ex)
                     {
-                        System.Diagnostics.Debug.WriteLine($"Auto-login failed: {ex.Message}");
+                        System.Diagnostics.Debug.WriteLine($"Auto-login failed: {ex.GetType().Name} - {ex.Message}");
+                        // Continue to sign up form on other errors
                     }
                 }
 

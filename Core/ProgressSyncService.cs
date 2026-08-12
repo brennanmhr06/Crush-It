@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net.Http;
 using System.Threading.Tasks;
 using MongoDB.Driver;
 using CrushIt.Data;
@@ -14,6 +15,10 @@ namespace CrushIt.Core
         private static readonly object SyncLock = new object();
         private static bool isSyncing = false;
         private static DateTime lastSyncTime = DateTime.MinValue;
+        private static DateTime lastErrorTime = DateTime.MinValue;
+        private static string lastErrorMessage = "";
+        private static int consecutiveErrors = 0;
+        private const int MAX_CONSECUTIVE_ERRORS = 5;
 
         /// <summary>
         /// Sync progress on app launch - pulls latest data from server
@@ -21,7 +26,26 @@ namespace CrushIt.Core
         public static async Task<bool> SyncOnLaunchAsync(UserAccount currentUser, IMongoDatabase database, IApiClient? apiClient)
         {
             if (apiClient == null || string.IsNullOrEmpty(currentUser.UserId))
+            {
+                LogError("Sync on launch skipped: API client unavailable or no user ID");
                 return false;
+            }
+
+            // Check if we've had too many consecutive errors
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS)
+            {
+                TimeSpan timeSinceLastError = DateTime.UtcNow - lastErrorTime;
+                if (timeSinceLastError.TotalMinutes < 5)
+                {
+                    LogError($"Sync on launch skipped: Too many consecutive errors ({consecutiveErrors}). Waiting {5 - timeSinceLastError.TotalMinutes:F1} minutes.");
+                    return false;
+                }
+                else
+                {
+                    // Reset error counter after cooldown period
+                    consecutiveErrors = 0;
+                }
+            }
 
             lock (SyncLock)
             {
@@ -33,20 +57,42 @@ namespace CrushIt.Core
             try
             {
                 string deviceFingerprint = GenerateDeviceFingerprint();
+                System.Diagnostics.Debug.WriteLine($"[Sync] Starting sync on launch for user {currentUser.UserId}");
+                
                 var serverProgress = await apiClient.GetServerProgressAsync(currentUser.UserId, deviceFingerprint);
 
                 if (serverProgress == null)
+                {
+                    LogError("Sync on launch failed: Server returned null progress data");
                     return false;
+                }
 
                 // Merge server data with local data (server takes precedence)
                 await MergeServerProgressAsync(currentUser, database, serverProgress);
 
                 lastSyncTime = DateTime.UtcNow;
+                consecutiveErrors = 0; // Reset error counter on success
+                System.Diagnostics.Debug.WriteLine($"[Sync] Sync on launch completed successfully for user {currentUser.UserId}");
                 return true;
+            }
+            catch (HttpRequestException ex)
+            {
+                LogError($"Sync on launch failed: Network error - {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException ex)
+            {
+                LogError($"Sync on launch failed: Request timeout - {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LogError($"Sync on launch failed: Authentication error - {ex.Message}");
+                return false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Sync on launch failed: {ex.Message}");
+                LogError($"Sync on launch failed: Unexpected error - {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
             finally
@@ -64,7 +110,25 @@ namespace CrushIt.Core
         public static async Task<bool> SyncAfterLevelAsync(UserAccount currentUser, IMongoDatabase database, IApiClient? apiClient)
         {
             if (apiClient == null || string.IsNullOrEmpty(currentUser.UserId))
+            {
+                LogError("Sync after level skipped: API client unavailable or no user ID");
                 return false;
+            }
+
+            // Check if we've had too many consecutive errors
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS)
+            {
+                TimeSpan timeSinceLastError = DateTime.UtcNow - lastErrorTime;
+                if (timeSinceLastError.TotalMinutes < 5)
+                {
+                    LogError($"Sync after level skipped: Too many consecutive errors ({consecutiveErrors}). Waiting {5 - timeSinceLastError.TotalMinutes:F1} minutes.");
+                    return false;
+                }
+                else
+                {
+                    consecutiveErrors = 0;
+                }
+            }
 
             // Don't sync if we synced recently (within 30 seconds)
             if ((DateTime.UtcNow - lastSyncTime).TotalSeconds < 30)
@@ -84,9 +148,14 @@ namespace CrushIt.Core
                 var latestUser = await usersCollection.Find(u => u.Id == currentUser.Id).FirstOrDefaultAsync();
                 
                 if (latestUser == null)
+                {
+                    LogError("Sync after level failed: User not found in database");
                     return false;
+                }
 
                 var syncRequest = BuildSyncRequest(latestUser);
+                System.Diagnostics.Debug.WriteLine($"[Sync] Starting sync after level for user {currentUser.UserId}");
+                
                 var syncResponse = await apiClient.SyncProgressAsync(syncRequest);
 
                 if (syncResponse.Success && syncResponse.ServerProgress != null)
@@ -104,11 +173,28 @@ namespace CrushIt.Core
                 }
 
                 lastSyncTime = DateTime.UtcNow;
+                consecutiveErrors = 0; // Reset error counter on success
+                System.Diagnostics.Debug.WriteLine($"[Sync] Sync after level completed successfully for user {currentUser.UserId}");
                 return syncResponse.Success;
+            }
+            catch (HttpRequestException ex)
+            {
+                LogError($"Sync after level failed: Network error - {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException ex)
+            {
+                LogError($"Sync after level failed: Request timeout - {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LogError($"Sync after level failed: Authentication error - {ex.Message}");
+                return false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Sync after level failed: {ex.Message}");
+                LogError($"Sync after level failed: Unexpected error - {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
             finally
@@ -126,7 +212,13 @@ namespace CrushIt.Core
         public static async Task<bool> SyncOnCloseAsync(UserAccount currentUser, IMongoDatabase database, IApiClient? apiClient)
         {
             if (apiClient == null || string.IsNullOrEmpty(currentUser.UserId))
+            {
+                LogError("Sync on close skipped: API client unavailable or no user ID");
                 return false;
+            }
+
+            // For close sync, we always try regardless of consecutive errors
+            // This is a best-effort attempt to save data before closing
 
             lock (SyncLock)
             {
@@ -142,17 +234,39 @@ namespace CrushIt.Core
                 var latestUser = await usersCollection.Find(u => u.Id == currentUser.Id).FirstOrDefaultAsync();
                 
                 if (latestUser == null)
+                {
+                    LogError("Sync on close failed: User not found in database");
                     return false;
+                }
 
                 var syncRequest = BuildSyncRequest(latestUser);
+                System.Diagnostics.Debug.WriteLine($"[Sync] Starting sync on close for user {currentUser.UserId}");
+                
                 var syncResponse = await apiClient.SyncProgressAsync(syncRequest);
 
                 lastSyncTime = DateTime.UtcNow;
+                consecutiveErrors = 0; // Reset error counter on success
+                System.Diagnostics.Debug.WriteLine($"[Sync] Sync on close completed successfully for user {currentUser.UserId}");
                 return syncResponse.Success;
+            }
+            catch (HttpRequestException ex)
+            {
+                LogError($"Sync on close failed: Network error - {ex.Message}");
+                return false;
+            }
+            catch (TaskCanceledException ex)
+            {
+                LogError($"Sync on close failed: Request timeout - {ex.Message}");
+                return false;
+            }
+            catch (UnauthorizedAccessException ex)
+            {
+                LogError($"Sync on close failed: Authentication error - {ex.Message}");
+                return false;
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine($"Sync on close failed: {ex.Message}");
+                LogError($"Sync on close failed: Unexpected error - {ex.GetType().Name}: {ex.Message}");
                 return false;
             }
             finally
@@ -289,6 +403,38 @@ namespace CrushIt.Core
         private static string GenerateDeviceFingerprint()
         {
             return Environment.MachineName + "|" + Environment.OSVersion.VersionString;
+        }
+
+        private static void LogError(string message)
+        {
+            lastErrorTime = DateTime.UtcNow;
+            lastErrorMessage = message;
+            consecutiveErrors++;
+            
+            System.Diagnostics.Debug.WriteLine($"[Sync Error] {message}");
+            System.Diagnostics.Debug.WriteLine($"[Sync Error] Consecutive errors: {consecutiveErrors}");
+            
+            // TODO: In production, you might want to:
+            // 1. Log to a file
+            // 2. Send to a monitoring service
+            // 3. Show user notification if errors persist
+        }
+
+        public static string GetLastError()
+        {
+            return lastErrorMessage;
+        }
+
+        public static int GetConsecutiveErrorCount()
+        {
+            return consecutiveErrors;
+        }
+
+        public static void ResetErrorTracking()
+        {
+            consecutiveErrors = 0;
+            lastErrorMessage = "";
+            lastErrorTime = DateTime.MinValue;
         }
     }
 }
