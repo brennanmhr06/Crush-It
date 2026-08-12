@@ -35,7 +35,8 @@ namespace CrushIt.UI
         public float RotationSpeed;
         public float PulsePhase;
         public float PulseSpeed;
-        public List<Particle> Trail;
+        public Particle[] Trail; // Changed from List to array for better memory efficiency
+        public int TrailCount; // Track actual trail count
     }
 
     public struct Sparkle
@@ -149,8 +150,8 @@ namespace CrushIt.UI
 
         private void InitParticles()
         {
-            // Increase background particles from 150 to 300
-            for (int i = 0; i < 300; i++)
+            // Reduced background particles from 300 to 150 for memory efficiency
+            for (int i = 0; i < 150; i++)
             {
                 particles.Add(new Particle
                 {
@@ -166,8 +167,8 @@ namespace CrushIt.UI
                 });
             }
 
-            // Increase orbiting candies from 12 to 20
-            for (int i = 0; i < 20; i++)
+            // Reduced orbiting candies from 20 to 12 for memory efficiency
+            for (int i = 0; i < 12; i++)
             {
                 float baseSize = rand.Next(15, 28);
                 var orbiter = new CandyOrbiter
@@ -183,12 +184,13 @@ namespace CrushIt.UI
                     RotationSpeed = (float)(rand.NextDouble() * 3 - 1.5),
                     PulsePhase = rand.Next(0, 100),
                     PulseSpeed = (float)(rand.NextDouble() * 0.05 + 0.02),
-                    Trail = new List<Particle>()
+                    Trail = new Particle[20], // Fixed size array for trail
+                    TrailCount = 0
                 };
                 orbiters.Add(orbiter);
             }
 
-            // Increase sparkles from 15 to 40
+            // Reduced sparkles from 40 to 20 for memory efficiency
             var primaryScreen = Screen.PrimaryScreen;
             int screenWidth = primaryScreen?.WorkingArea.Width ?? 1920;
             int screenHeight = primaryScreen?.WorkingArea.Height ?? 1080;
@@ -196,8 +198,8 @@ namespace CrushIt.UI
             // Ensure we have valid screen dimensions
             if (screenWidth <= 0) screenWidth = 1920;
             if (screenHeight <= 0) screenHeight = 1080;
-            
-            for (int i = 0; i < 40; i++)
+
+            for (int i = 0; i < 20; i++)
             {
                 sparkles.Add(new Sparkle
                 {
@@ -210,8 +212,8 @@ namespace CrushIt.UI
                 });
             }
 
-            // Add new floating candies
-            for (int i = 0; i < 50; i++)
+            // Reduced floating candies from 50 to 25 for memory efficiency
+            for (int i = 0; i < 25; i++)
             {
                 floatingCandies.Add(new FloatingCandy
                 {
@@ -228,8 +230,8 @@ namespace CrushIt.UI
                 });
             }
 
-            // Add new wave particles
-            for (int i = 0; i < 80; i++)
+            // Reduced wave particles from 80 to 40 for memory efficiency
+            for (int i = 0; i < 40; i++)
             {
                 float baseX = rand.Next(0, 550);
                 float baseY = rand.Next(0, 700);
@@ -626,14 +628,14 @@ namespace CrushIt.UI
                 orb.Size = orb.BaseSize * pulseScale;
                 
                 // Add trail particles
-                if (rand.Next(0, 4) == 0)
+                if (rand.Next(0, 4) == 0 && orb.TrailCount < orb.Trail.Length)
                 {
                     int centerX = 275;
                     int centerY = (int)(158 + floatAnim);
                     float orbX = centerX + (float)(Math.Cos(orb.Angle) * orb.Radius);
                     float orbY = centerY + (float)(Math.Sin(orb.Angle) * orb.Radius);
-                    
-                    orb.Trail.Add(new Particle
+
+                    orb.Trail[orb.TrailCount] = new Particle
                     {
                         X = orbX,
                         Y = orbY,
@@ -644,20 +646,30 @@ namespace CrushIt.UI
                         Color = orb.Color,
                         PulseSpeed = 0.01f,
                         Shape = 0
-                    });
+                    };
+                    orb.TrailCount++;
                 }
-                
+
                 // Update trail particles
-                for (int j = orb.Trail.Count - 1; j >= 0; j--)
+                for (int j = orb.TrailCount - 1; j >= 0; j--)
                 {
                     var trail = orb.Trail[j];
                     trail.Alpha -= 8;
                     trail.Alpha = Math.Max(0, trail.Alpha);
                     trail.Size *= 0.95f;
                     if (trail.Alpha <= 0)
-                        orb.Trail.RemoveAt(j);
+                    {
+                        // Remove by shifting elements
+                        for (int k = j; k < orb.TrailCount - 1; k++)
+                        {
+                            orb.Trail[k] = orb.Trail[k + 1];
+                        }
+                        orb.TrailCount--;
+                    }
                     else
+                    {
                         orb.Trail[j] = trail;
+                    }
                 }
                 
                 orbiters[i] = orb;
@@ -864,8 +876,9 @@ namespace CrushIt.UI
                 float orbY = centerY + (float)(Math.Sin(orb.Angle) * orb.Radius);
                 
                 // Draw trail particles
-                foreach (var trail in orb.Trail)
+                for (int t = 0; t < orb.TrailCount; t++)
                 {
+                    var trail = orb.Trail[t];
                     int clampedAlpha = Math.Max(0, Math.Min(255, (int)trail.Alpha));
                     using (SolidBrush trailBrush = new SolidBrush(Color.FromArgb(clampedAlpha, trail.Color)))
                     {

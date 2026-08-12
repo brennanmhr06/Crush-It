@@ -17,7 +17,7 @@ namespace CrushIt.UI
         private System.Windows.Forms.Timer animationTimer = null!;
         private int pulsePhase = 0;
         private readonly Random particleRand = new Random();
-        private readonly List<StyleParticle> backgroundParticles = new List<StyleParticle>();
+        private StyleParticle[] backgroundParticles = Array.Empty<StyleParticle>();
 
         private Label usernameLabel = null!;
         private Label pencilIconLabel = null!;
@@ -50,7 +50,7 @@ namespace CrushIt.UI
             InitializeComponent();
 
             // Set particles to use form size
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 45, 890, 80, 530));
+            backgroundParticles = CrushItStyleHelper.CreateParticles(particleRand, 30, 890, 80, 530); // Reduced from 45 to 30
             
             LoadUserData();
             StartAnimation();

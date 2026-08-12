@@ -37,7 +37,7 @@ namespace CrushIt.UI
         private int sessionGold = 0;
         private int completionAnimationPhase = 0;
         private int pulsePhase = 0;
-        private readonly List<StyleParticle> backgroundParticles = new List<StyleParticle>();
+        private StyleParticle[] backgroundParticles = Array.Empty<StyleParticle>();
         private readonly Random bgRand = new Random();
         private float buttonScale = 1f;
         private float buttonPressDepth = 0f;
@@ -80,7 +80,7 @@ namespace CrushIt.UI
             gameLoopTimer.Tick += GameLoopTimer_Tick;
             gameLoopTimer.Start();
 
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(bgRand, 30, 890, 80, 530));
+            backgroundParticles = CrushItStyleHelper.CreateParticles(bgRand, 20, 890, 80, 530); // Reduced from 30 to 20
         }
 
         private void InitializeComponent()

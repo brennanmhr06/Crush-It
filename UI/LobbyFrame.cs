@@ -24,7 +24,7 @@ namespace CrushIt.UI
     {
         private readonly UserAccount currentUser;
         private readonly IMongoDatabase database;
-        private List<StyleParticle> backgroundParticles = new List<StyleParticle>();
+        private StyleParticle[] backgroundParticles = Array.Empty<StyleParticle>();
         private System.Windows.Forms.Timer animationTimer = null!;
         private Random particleRand = new Random();
         private int pulsePhase = 0;
@@ -131,7 +131,7 @@ namespace CrushIt.UI
 
         private void InitializeParticles()
         {
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 45, 890, 80, 530));
+            backgroundParticles = CrushItStyleHelper.CreateParticles(particleRand, 30, 890, 80, 530); // Reduced from 45 to 30
         }
 
         private void StartAnimation()

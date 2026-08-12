@@ -34,7 +34,7 @@ namespace CrushIt.UI
         private System.Windows.Forms.Timer animationTimer = null!;
         private int pulsePhase = 0;
         private readonly Random particleRand = new Random();
-        private readonly List<StyleParticle> backgroundParticles = new List<StyleParticle>();
+        private StyleParticle[] backgroundParticles = Array.Empty<StyleParticle>();
 
         private string usernameInput = "";
         private string emailInput = "";
@@ -101,7 +101,7 @@ namespace CrushIt.UI
             }
 
             InitializeComponent();
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 35, 550, 80, 480));
+            backgroundParticles = CrushItStyleHelper.CreateParticles(particleRand, 20, 550, 80, 480); // Reduced from 35 to 20
             
             // Handle application lifecycle
             this.FormClosed += (s, e) => {

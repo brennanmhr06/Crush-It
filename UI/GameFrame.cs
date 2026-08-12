@@ -54,7 +54,7 @@ namespace CrushIt.UI
         private DateTime lastInteractionTime = DateTime.UtcNow;
 
         // Background styling
-        private List<StyleParticle> backgroundParticles = new List<StyleParticle>();
+        private StyleParticle[] backgroundParticles = Array.Empty<StyleParticle>();
         private Random particleRand = new Random();
         private int pulsePhase = 0;
 
@@ -121,7 +121,7 @@ namespace CrushIt.UI
             GameData.ResetScore();
             
             // Initialize background particles - use form size
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 40, 890, 80, 530));
+            backgroundParticles = CrushItStyleHelper.CreateParticles(particleRand, 25, 890, 80, 530); // Reduced from 40 to 25
             
             // Start background music with low volume for gameplay
             SoundManager.StartBackgroundMusic(0.08f); // 8% volume during gameplay (very faded)

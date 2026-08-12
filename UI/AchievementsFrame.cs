@@ -33,7 +33,7 @@ namespace CrushIt.UI
         private int scrollOffset = 0;
         private int targetScrollOffset = 0;
 
-        private List<StyleParticle> backgroundParticles = new List<StyleParticle>();
+        private StyleParticle[] backgroundParticles = Array.Empty<StyleParticle>();
         private Random particleRand = new Random();
 
 
@@ -64,7 +64,7 @@ namespace CrushIt.UI
 
         private void InitializeParticles()
         {
-            backgroundParticles.AddRange(CrushItStyleHelper.CreateParticles(particleRand, 45, 890, 80, 530));
+            backgroundParticles = CrushItStyleHelper.CreateParticles(particleRand, 30, 890, 80, 530); // Reduced from 45 to 30
         }
 
         private void LoadUserAchievements()

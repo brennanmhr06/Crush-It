@@ -7,15 +7,15 @@ namespace CrushIt.UI
 {
     public enum NavItem { Home, Levels, Achievements, Social }
 
-    public class StyleParticle
+    public struct StyleParticle
     {
-        public float X { get; set; }
-        public float Y { get; set; }
-        public float SpeedX { get; set; }
-        public float SpeedY { get; set; }
-        public int Size { get; set; }
-        public int Alpha { get; set; }
-        public Color ParticleColor { get; set; }
+        public float X;
+        public float Y;
+        public float SpeedX;
+        public float SpeedY;
+        public int Size;
+        public int Alpha;
+        public Color ParticleColor;
     }
 
     public static class CrushItStyleHelper
@@ -39,13 +39,13 @@ namespace CrushIt.UI
             g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
         }
 
-        public static List<StyleParticle> CreateParticles(Random rand, int count, int width, int minY, int maxY)
+        public static StyleParticle[] CreateParticles(Random rand, int count, int width, int minY, int maxY)
         {
-            var particles = new List<StyleParticle>();
+            var particles = new StyleParticle[count];
             for (int i = 0; i < count; i++)
             {
                 Color baseColor = ParticleColors[rand.Next(ParticleColors.Length)];
-                particles.Add(new StyleParticle
+                particles[i] = new StyleParticle
                 {
                     X = rand.Next(10, width - 10),
                     Y = rand.Next(minY, maxY),
@@ -54,21 +54,21 @@ namespace CrushIt.UI
                     Size = rand.Next(2, 6),
                     Alpha = rand.Next(15, 45),
                     ParticleColor = baseColor
-                });
+                };
             }
             return particles;
         }
 
-        public static void UpdateParticles(List<StyleParticle> particles, int width, int minY, int maxY)
+        public static void UpdateParticles(StyleParticle[] particles, int width, int minY, int maxY)
         {
-            foreach (var p in particles)
+            for (int i = 0; i < particles.Length; i++)
             {
-                p.X += p.SpeedX;
-                p.Y += p.SpeedY;
-                if (p.X < 0) p.X = width;
-                if (p.X > width) p.X = 0;
-                if (p.Y < minY) p.Y = maxY;
-                if (p.Y > maxY) p.Y = minY;
+                particles[i].X += particles[i].SpeedX;
+                particles[i].Y += particles[i].SpeedY;
+                if (particles[i].X < 0) particles[i].X = width;
+                if (particles[i].X > width) particles[i].X = 0;
+                if (particles[i].Y < minY) particles[i].Y = maxY;
+                if (particles[i].Y > maxY) particles[i].Y = minY;
             }
         }
 
@@ -105,14 +105,14 @@ namespace CrushIt.UI
             }
         }
 
-        public static void DrawBackgroundParticles(Graphics g, IEnumerable<StyleParticle> particles)
+        public static void DrawBackgroundParticles(Graphics g, StyleParticle[] particles)
         {
-            foreach (var p in particles)
+            for (int i = 0; i < particles.Length; i++)
             {
-                int clampedAlpha = Math.Max(0, Math.Min(255, p.Alpha));
-                using (SolidBrush brush = new SolidBrush(Color.FromArgb(clampedAlpha, p.ParticleColor)))
+                int clampedAlpha = Math.Max(0, Math.Min(255, particles[i].Alpha));
+                using (SolidBrush brush = new SolidBrush(Color.FromArgb(clampedAlpha, particles[i].ParticleColor)))
                 {
-                    g.FillEllipse(brush, p.X, p.Y, p.Size, p.Size);
+                    g.FillEllipse(brush, particles[i].X, particles[i].Y, particles[i].Size, particles[i].Size);
                 }
             }
         }
