@@ -4,7 +4,7 @@
 - [ ] Add missing sound files referenced in SoundManager (levelcomplete.mp3, achievement.mp3, specialmove.mp3, gameover.mp3, buttonclick.mp3, navigation.mp3, error.mp3)
 
 ## 🟡 High Priority Features
-- [ ] Integrate powerups system into actual gameplay (currently only defined in config)
+- [ ] Integrate powerups system into actual gameplay (config exists but special abilities, multipliers, and activation system not implemented)
 - [ ] Add sound settings UI for users to control music/SFX volume and toggle sounds
 - [ ] Load sound settings from appsettings.json configuration
 - [ ] Implement level star rating system (1-3 stars based on performance)
